@@ -1,0 +1,28 @@
+# Phase Map — master plan ↔ repo reconciliation
+
+The v2 master plan renumbers phases and adds a Meeting Intelligence module. This table is the
+**authoritative** mapping between the master-plan phase numbers, the repo's original
+`IMPLEMENTATION_PLAN.md` numbers, and actual status. Agent 0 keeps it current.
+
+_Last updated: 2026-09-22._
+
+| Master | Agent | Scope | Repo (old) | Status | Branch / commit |
+| ------ | ----- | ----- | ---------- | ------ | --------------- |
+| P1 | 1 | Product research docs (`REFERENCE_ANALYSIS`, `PRODUCT_FEATURES`, `PAGE_MAP`, `USER_FLOWS`) | pre-work | ⚠️ Partial — needs `/reference/` assets | — |
+| P2 | 2 | Architecture docs (`ARCHITECTURE`✅, `DATABASE_DESIGN`, `API_DESIGN`, `AI_ARCHITECTURE`, `SECURITY_ARCHITECTURE`) | pre-work | ⚠️ Partial | — |
+| P3 | 3 | UI/Foundation: shell, auth, sidebar, routing, dashboard, profile, settings | Ph 1 + 2 | ✅ Done | `feature/phase-2-dashboard-profile` 103c3fa (pushed) |
+| P4 | 4 | AI Chat: streaming, history, persistence, provider abstraction, sessions | Ph 3 | ✅ Done | `feature/phase-3-ai-chat` f40f72f (pushed) |
+| P5 | 5 | Roleplay: scenarios, characters, feedback, session history | Ph 4 | ✅ Done | `feature/phase-4-5-modes` ec53c5d (pushed) |
+| P6 | 6 | Learning modes: word/sentence/dialogue/vocab/grammar/speaking | Ph 4 | ✅ Done (core) | `feature/phase-4-5-modes` ec53c5d |
+| P7A | 7 | Voice: mic/device select, STT/TTS, voice conversation, recording controls | Ph 5 | 🔨 Scaffolded (Web Speech hooks, Call page) | `feature/phase-4-5-modes` |
+| P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ❌ Not started | — |
+| P8 | 8 | Advanced AI modes: photo, debate, characters | Ph 6 | ❌ Not started | — |
+| P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ❌ Not started | — |
+| P10 | 10 | Progress + analytics (incl. meeting analytics) | Ph 8 | ❌ Not started | — |
+| P11–12 | 11 | QA / security / deployment | Ph 10 | ❌ Not started | — |
+
+Notes:
+- Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
+- `develop` is the integration branch, currently at `ec53c5d` (integrates P3–P6 + P7A scaffold).
+- Next buildable work: **P7B Meeting Intelligence** (schema + schedule UI + mock analysis; real
+  Teams/AVD capture deferred pending environment validation) and completing **P1/P2 docs**.
