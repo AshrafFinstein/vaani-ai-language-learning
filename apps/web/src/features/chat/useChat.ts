@@ -19,13 +19,17 @@ export function useConversation(id: string | undefined) {
   });
 }
 
-export function useStartConversation() {
+/**
+ * Starts a conversation and navigates to its session page.
+ * `basePath` lets Roleplay/Dialogue reuse the same flow (e.g. "/app/roleplay").
+ */
+export function useStartConversation(basePath = '/app/chat') {
   const navigate = useNavigate();
   return useMutation({
     mutationFn: (input: StartConversationInput) => chatApi.start(input),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['chat', 'history'] });
-      navigate(`/app/chat/${data.conversation.id}`);
+      navigate(`${basePath}/${data.conversation.id}`);
     },
   });
 }

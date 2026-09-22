@@ -1,3 +1,4 @@
+import type { DialogueScenario, RoleplayScenario } from '@vaani/types';
 import type { ChatOptions } from './types.js';
 
 const LEVEL_GUIDANCE: Record<string, string> = {
@@ -59,6 +60,63 @@ export function buildFeedbackPrompt(options?: ChatOptions): string {
     `  "overall_score": number             // 0-100`,
     `}`,
     `Only include real corrections you actually observed. Use empty arrays when there is nothing to add.`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** System prompt that puts the AI in-character for a Roleplay scenario. */
+export function buildRoleplayPrompt(scenario: RoleplayScenario, options?: ChatOptions): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are role-playing as ${scenario.aiRole} in ${scenario.setting}. The learner is ${scenario.userRole}.`,
+    `Scenario: ${scenario.title}. ${scenario.description}`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Guidelines:`,
+    `- Stay fully in character as ${scenario.aiRole}.`,
+    `- Speak ONLY in ${language}, in short, natural turns (1-3 sentences).`,
+    `- Move the scene forward and ask questions so the learner keeps speaking.`,
+    `- Do NOT break character to correct mistakes; keep the roleplay immersive.`,
+    `- Gently steer toward these goals: ${scenario.objectives.join('; ')}.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** System prompt for a guided Dialogue scenario. */
+export function buildDialoguePrompt(scenario: DialogueScenario, options?: ChatOptions): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are guiding a short, structured dialogue with a language learner.`,
+    `Dialogue: ${scenario.title}. Goal: ${scenario.goal}.`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Guidelines:`,
+    `- Speak ONLY in ${language}, one short turn at a time.`,
+    `- Keep the dialogue on track toward the goal and wrap up in about ${scenario.targetTurns} turns.`,
+    `- If the learner's turn is unclear, gently offer a natural way to say it, then continue.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** System prompt for evaluating a single learner sentence (Sentence Mode). */
+export function buildSentenceEvalPrompt(prompt: string, options?: ChatOptions): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are a ${language} tutor evaluating one sentence a learner wrote in response to a prompt.`,
+    `Prompt shown to the learner: "${prompt}"`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "corrected": string,          // the learner's sentence with errors fixed (or unchanged if correct)`,
+    `  "betterVersion": string,      // a more natural, native-like way to express it`,
+    `  "explanation": string,        // 1-2 sentences explaining the main fix or tip`,
+    `  "isCorrect": boolean,         // true if the original had no real errors`,
+    `  "grammar_score": number,      // 0-100`,
+    `  "naturalness_score": number,  // 0-100`,
+    `  "overall_score": number       // 0-100`,
+    `}`,
     `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
   ]
     .filter(Boolean)

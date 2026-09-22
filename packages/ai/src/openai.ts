@@ -1,6 +1,11 @@
-import { AIFeedbackSchema, type AIFeedback } from '@vaani/types';
+import {
+  AIFeedbackSchema,
+  SentenceEvaluationSchema,
+  type AIFeedback,
+  type SentenceEvaluation,
+} from '@vaani/types';
 import type { AIProvider, ChatMessage, ChatOptions, ChatResult } from './types.js';
-import { buildFeedbackPrompt, buildSystemPrompt } from './prompt.js';
+import { buildFeedbackPrompt, buildSentenceEvalPrompt, buildSystemPrompt } from './prompt.js';
 
 export interface OpenAIProviderConfig {
   apiKey: string;
@@ -55,7 +60,7 @@ export class OpenAIProvider implements AIProvider {
 
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
     const res = await this.call({
-      messages: this.withSystem(messages, buildSystemPrompt(options)),
+      messages: this.withSystem(messages, options?.systemPrompt ?? buildSystemPrompt(options)),
       temperature: 0.7,
     });
     const data = (await res.json()) as OpenAIChoiceMessage;
@@ -64,7 +69,7 @@ export class OpenAIProvider implements AIProvider {
 
   async *streamChat(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<string> {
     const res = await this.call({
-      messages: this.withSystem(messages, buildSystemPrompt(options)),
+      messages: this.withSystem(messages, options?.systemPrompt ?? buildSystemPrompt(options)),
       temperature: 0.7,
       stream: true,
     });
@@ -112,6 +117,46 @@ export class OpenAIProvider implements AIProvider {
     const raw = data.choices?.[0]?.message?.content ?? '{}';
     return parseFeedback(raw);
   }
+
+  async evaluateSentence(
+    prompt: string,
+    answer: string,
+    options?: ChatOptions,
+  ): Promise<SentenceEvaluation> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildSentenceEvalPrompt(prompt, options) },
+        { role: 'user', content: answer },
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => {
+      if (typeof obj.corrected !== 'string') obj.corrected = answer;
+      if (typeof obj.betterVersion !== 'string') obj.betterVersion = String(obj.corrected ?? answer);
+      if (typeof obj.explanation !== 'string') obj.explanation = '';
+      return SentenceEvaluationSchema.parse(obj);
+    });
+  }
+}
+
+/** Parses model JSON output defensively, then hands the object to a validator. */
+function parseJson<T>(raw: string, validate: (obj: Record<string, unknown>) => T): T {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    parsed = match ? JSON.parse(match[0]) : {};
+  }
+  const obj = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  return validate(obj);
 }
 
 /** Extracts and validates AIFeedback JSON from a model response (never trust raw output). */

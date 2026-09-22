@@ -10,15 +10,15 @@ import ForgotPasswordPage from '@/pages/public/ForgotPassword';
 import MarketingPlaceholder from '@/pages/public/MarketingPlaceholder';
 import DashboardPage from '@/pages/app/Dashboard';
 import ChatPage from '@/pages/app/Chat';
+import RoleplayPage from '@/pages/app/Roleplay';
+import DialoguePage from '@/pages/app/Dialogue';
+import SentencePage from '@/pages/app/Sentence';
+import WordPage from '@/pages/app/Word';
+import CallPage from '@/pages/app/Call';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
 const COMING_SOON = [
-  'roleplay',
-  'call',
-  'dialogue',
-  'sentence',
-  'word',
   'photo',
   'debate',
   'characters',
@@ -65,6 +65,13 @@ export default function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="chat/:id" element={<ChatPage />} />
+        <Route path="roleplay" element={<RoleplayPage />} />
+        <Route path="roleplay/:id" element={<RoleplayPage />} />
+        <Route path="dialogue" element={<DialoguePage />} />
+        <Route path="dialogue/:id" element={<DialoguePage />} />
+        <Route path="sentence" element={<SentencePage />} />
+        <Route path="word" element={<WordPage />} />
+        <Route path="call" element={<CallPage />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}

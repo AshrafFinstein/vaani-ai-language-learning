@@ -1,4 +1,4 @@
-import type { AIFeedback, LearningLevel } from '@vaani/types';
+import type { AIFeedback, LearningLevel, SentenceEvaluation } from '@vaani/types';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -16,6 +16,11 @@ export interface ChatOptions {
   languageName?: string;
   /** Optional conversation topic/scenario hint. */
   topic?: string;
+  /**
+   * Full system prompt override (e.g. a roleplay/dialogue scenario). When set,
+   * providers use it verbatim instead of the default tutor prompt.
+   */
+  systemPrompt?: string;
 }
 
 export interface ChatResult {
@@ -34,6 +39,12 @@ export interface AIProvider {
   streamChat(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<string>;
   /** Structured tutor feedback for a conversation — always schema-validated. */
   analyze(messages: ChatMessage[], options?: ChatOptions): Promise<AIFeedback>;
+  /** Structured evaluation of one learner sentence — always schema-validated. */
+  evaluateSentence(
+    prompt: string,
+    answer: string,
+    options?: ChatOptions,
+  ): Promise<SentenceEvaluation>;
 }
 
 export interface SpeechToTextResult {

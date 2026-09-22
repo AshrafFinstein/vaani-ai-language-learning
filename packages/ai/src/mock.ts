@@ -1,4 +1,9 @@
-import { AIFeedbackSchema, type AIFeedback } from '@vaani/types';
+import {
+  AIFeedbackSchema,
+  SentenceEvaluationSchema,
+  type AIFeedback,
+  type SentenceEvaluation,
+} from '@vaani/types';
 import type {
   AIProvider,
   ChatMessage,
@@ -77,6 +82,33 @@ export class MockAIProvider implements AIProvider {
       grammar_score: 78,
       fluency_score: 74,
       overall_score: 76,
+    });
+  }
+
+  async evaluateSentence(
+    _prompt: string,
+    answer: string,
+    _options?: ChatOptions,
+  ): Promise<SentenceEvaluation> {
+    const trimmed = answer.trim();
+    const startsUpper = /^[A-ZÁÉÍÓÚÑ]/.test(trimmed);
+    const endsPunctuated = /[.!?]$/.test(trimmed);
+    const isCorrect = startsUpper && endsPunctuated;
+
+    let corrected = trimmed;
+    if (!startsUpper) corrected = corrected.charAt(0).toUpperCase() + corrected.slice(1);
+    if (!endsPunctuated) corrected = `${corrected}.`;
+
+    return SentenceEvaluationSchema.parse({
+      corrected,
+      betterVersion: corrected,
+      explanation: isCorrect
+        ? 'Great sentence — clear and well-formed!'
+        : 'Remember to start with a capital letter and end with punctuation.',
+      isCorrect,
+      grammar_score: isCorrect ? 95 : 75,
+      naturalness_score: 80,
+      overall_score: isCorrect ? 90 : 78,
     });
   }
 }

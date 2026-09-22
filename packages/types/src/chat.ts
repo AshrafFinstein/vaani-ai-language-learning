@@ -37,6 +37,10 @@ export const CHAT_TOPICS: ChatTopicMeta[] = [
 export const MessageRole = z.enum(['USER', 'ASSISTANT']);
 export type MessageRole = z.infer<typeof MessageRole>;
 
+/** How a conversation is driven: open chat, a roleplay scenario, or a guided dialogue. */
+export const ConversationMode = z.enum(['CHAT', 'ROLEPLAY', 'DIALOGUE']);
+export type ConversationMode = z.infer<typeof ConversationMode>;
+
 export const MessageDTO = z.object({
   id: z.string(),
   role: MessageRole,
@@ -48,7 +52,9 @@ export type MessageDTO = z.infer<typeof MessageDTO>;
 export const ConversationDTO = z.object({
   id: z.string(),
   title: z.string(),
+  mode: ConversationMode,
   topic: ChatTopic,
+  scenarioKey: z.string().nullable(),
   level: LearningLevel,
   languageCode: z.string(),
   createdAt: z.string(),
@@ -69,12 +75,29 @@ export const ConversationSummaryDTO = ConversationDTO.extend({
 });
 export type ConversationSummaryDTO = z.infer<typeof ConversationSummaryDTO>;
 
-export const StartConversationInput = z.object({
-  topic: ChatTopic,
-  level: LearningLevel,
-  /** Optional — defaults to the user's current learning language when omitted. */
-  languageCode: z.string().min(2).max(10).optional(),
-});
+export const StartConversationInput = z
+  .object({
+    mode: ConversationMode.default('CHAT'),
+    /** Required for CHAT mode. */
+    topic: ChatTopic.optional(),
+    /** Required for ROLEPLAY/DIALOGUE mode — identifies the scenario. */
+    scenarioKey: z.string().optional(),
+    level: LearningLevel,
+    /** Optional — defaults to the user's current learning language when omitted. */
+    languageCode: z.string().min(2).max(10).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.mode === 'CHAT' && !val.topic) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['topic'], message: 'Choose a topic' });
+    }
+    if (val.mode !== 'CHAT' && !val.scenarioKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scenarioKey'],
+        message: 'Choose a scenario',
+      });
+    }
+  });
 export type StartConversationInput = z.infer<typeof StartConversationInput>;
 
 export const SendMessageInput = z.object({

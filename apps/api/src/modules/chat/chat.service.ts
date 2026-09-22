@@ -1,6 +1,8 @@
 import type { Prisma } from '@prisma/client';
 import {
   CHAT_TOPICS,
+  findDialogueScenario,
+  findRoleplayScenario,
   type AIFeedback,
   type ConversationDetailDTO,
   type ConversationDTO,
@@ -8,7 +10,7 @@ import {
   type MessageDTO,
   type StartConversationInput,
 } from '@vaani/types';
-import type { ChatMessage, ChatOptions } from '@vaani/ai';
+import { buildDialoguePrompt, buildRoleplayPrompt, type ChatMessage, type ChatOptions } from '@vaani/ai';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
@@ -29,7 +31,9 @@ function toMessageDTO(m: Message): MessageDTO {
 function toConversationDTO(c: {
   id: string;
   title: string;
+  mode: string;
   topic: string;
+  scenarioKey: string | null;
   level: string;
   languageCode: string;
   createdAt: Date;
@@ -38,7 +42,9 @@ function toConversationDTO(c: {
   return {
     id: c.id,
     title: c.title,
+    mode: c.mode as ConversationDTO['mode'],
     topic: c.topic as ConversationDTO['topic'],
+    scenarioKey: c.scenarioKey,
     level: c.level as ConversationDTO['level'],
     languageCode: c.languageCode,
     createdAt: c.createdAt.toISOString(),
@@ -61,6 +67,16 @@ function buildContext(conv: ConversationWithMessages): {
     languageName: conv.language.name,
     topic: topicLabel(conv.topic),
   };
+
+  // Roleplay/Dialogue modes drive the AI with a scenario-specific system prompt.
+  if (conv.mode === 'ROLEPLAY' && conv.scenarioKey) {
+    const scenario = findRoleplayScenario(conv.scenarioKey);
+    if (scenario) options.systemPrompt = buildRoleplayPrompt(scenario, options);
+  } else if (conv.mode === 'DIALOGUE' && conv.scenarioKey) {
+    const scenario = findDialogueScenario(conv.scenarioKey);
+    if (scenario) options.systemPrompt = buildDialoguePrompt(scenario, options);
+  }
+
   return { messages, options };
 }
 
@@ -120,15 +136,36 @@ export const chatService = {
     });
     if (!language) throw ApiException.badRequest('Unknown language');
 
+    // Resolve mode-specific title, scenario, and the AI's opening line (if any).
+    let title: string;
+    let opener: string | undefined;
+    if (input.mode === 'ROLEPLAY') {
+      const scenario = findRoleplayScenario(input.scenarioKey!);
+      if (!scenario) throw ApiException.badRequest('Unknown roleplay scenario');
+      title = `${scenario.title} · ${language.name}`;
+      opener = scenario.aiOpener;
+    } else if (input.mode === 'DIALOGUE') {
+      const scenario = findDialogueScenario(input.scenarioKey!);
+      if (!scenario) throw ApiException.badRequest('Unknown dialogue scenario');
+      title = `${scenario.title} · ${language.name}`;
+      opener = scenario.opener;
+    } else {
+      title = `${topicLabel(input.topic!)} · ${language.name}`;
+    }
+
     const conversation = await prisma.conversation.create({
       data: {
         userId,
         languageCode,
-        topic: input.topic,
+        mode: input.mode,
+        topic: input.topic ?? 'FREE',
+        scenarioKey: input.scenarioKey ?? null,
         level: input.level,
-        title: `${topicLabel(input.topic)} · ${language.name}`,
+        title,
+        // Seed the AI's in-character opening line for scenario modes.
+        messages: opener ? { create: { role: 'ASSISTANT', content: opener } } : undefined,
         // Record the practice activity for future progress analytics.
-        practiceSessions: { create: { userId, kind: 'CHAT' } },
+        practiceSessions: { create: { userId, kind: input.mode } },
       },
     });
     return toConversationDTO(conversation);

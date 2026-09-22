@@ -123,6 +123,22 @@ describe('POST /api/chat (start)', () => {
     const res = await auth.post('/api/chat').send({ topic: 'NOPE', level: 'BEGINNER' });
     expect(res.status).toBe(422);
   });
+
+  it('starts a roleplay conversation from a scenario', async () => {
+    const res = await auth
+      .post('/api/chat')
+      .send({ mode: 'ROLEPLAY', scenarioKey: 'restaurant', level: 'BEGINNER', languageCode: 'es' });
+    expect(res.status).toBe(201);
+    expect(res.body.data.conversation.mode).toBe('ROLEPLAY');
+    expect(res.body.data.conversation.scenarioKey).toBe('restaurant');
+  });
+
+  it('requires a scenario for roleplay mode (422)', async () => {
+    const res = await auth
+      .post('/api/chat')
+      .send({ mode: 'ROLEPLAY', level: 'BEGINNER', languageCode: 'es' });
+    expect(res.status).toBe(422);
+  });
 });
 
 describe('messages + history + feedback', () => {

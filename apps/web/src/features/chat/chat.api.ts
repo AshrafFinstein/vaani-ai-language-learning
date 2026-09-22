@@ -4,6 +4,7 @@ import type {
   ConversationDetailDTO,
   ConversationDTO,
   ConversationSummaryDTO,
+  MessageDTO,
   SendMessageInput,
   StartConversationInput,
 } from '@vaani/types';
@@ -17,7 +18,10 @@ export const chatApi = {
   detail: (id: string) =>
     api.get<{ conversation: ConversationDetailDTO }>(`/api/chat/${id}`),
   send: (id: string, input: SendMessageInput) =>
-    api.post<{ userMessage: unknown; assistantMessage: unknown }>(`/api/chat/${id}/messages`, input),
+    api.post<{ userMessage: MessageDTO; assistantMessage: MessageDTO }>(
+      `/api/chat/${id}/messages`,
+      input,
+    ),
   feedback: (id: string) => api.post<{ feedback: AIFeedback }>(`/api/chat/${id}/feedback`),
 };
 

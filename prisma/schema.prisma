@@ -49,6 +49,12 @@ enum MessageRole {
   ASSISTANT
 }
 
+enum ConversationMode {
+  CHAT
+  ROLEPLAY
+  DIALOGUE
+}
+
 // Practice categories; only CHAT is produced in Phase 3. Others are added with their features.
 enum PracticeKind {
   CHAT
@@ -151,7 +157,10 @@ model Conversation {
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   languageCode String
   language     Language          @relation(fields: [languageCode], references: [code])
+  mode         ConversationMode  @default(CHAT)
   topic        ConversationTopic @default(FREE)
+  // For ROLEPLAY/DIALOGUE modes: identifies the static scenario.
+  scenarioKey  String?
   level        LearningLevel     @default(BEGINNER)
   title        String
   createdAt    DateTime          @default(now())

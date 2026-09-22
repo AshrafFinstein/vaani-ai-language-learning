@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MockAIProvider, parseFeedback, createAIProvider } from '@vaani/ai';
+import {
+  MockAIProvider,
+  parseFeedback,
+  createAIProvider,
+  buildRoleplayPrompt,
+} from '@vaani/ai';
+import { ROLEPLAY_SCENARIOS } from '@vaani/types';
 
 describe('MockAIProvider', () => {
   const provider = new MockAIProvider();
@@ -43,6 +49,32 @@ describe('parseFeedback', () => {
     const fb = parseFeedback('not json at all');
     expect(fb.reply).toBeTruthy();
     expect(fb.overall_score).toBe(0);
+  });
+});
+
+describe('MockAIProvider.evaluateSentence', () => {
+  const provider = new MockAIProvider();
+
+  it('flags a lowercase, unpunctuated sentence and fixes it', async () => {
+    const evaluation = await provider.evaluateSentence('Tell me about your day.', 'i went to work');
+    expect(evaluation.isCorrect).toBe(false);
+    expect(evaluation.corrected).toBe('I went to work.');
+    expect(evaluation.overall_score).toBeGreaterThanOrEqual(0);
+    expect(evaluation.overall_score).toBeLessThanOrEqual(100);
+  });
+
+  it('accepts a well-formed sentence', async () => {
+    const evaluation = await provider.evaluateSentence('Tell me about your day.', 'I went to work.');
+    expect(evaluation.isCorrect).toBe(true);
+  });
+});
+
+describe('buildRoleplayPrompt', () => {
+  it('embeds the scenario role and language', () => {
+    const scenario = ROLEPLAY_SCENARIOS[0]!;
+    const prompt = buildRoleplayPrompt(scenario, { languageName: 'Spanish', level: 'BEGINNER' });
+    expect(prompt).toContain(scenario.aiRole);
+    expect(prompt).toContain('Spanish');
   });
 });
 

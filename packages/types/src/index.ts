@@ -5,3 +5,6 @@ export * from './user.js';
 export * from './language.js';
 export * from './ai-feedback.js';
 export * from './chat.js';
+export * from './scenario.js';
+export * from './sentence.js';
+export * from './word.js';
