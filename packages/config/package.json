@@ -1,0 +1,6 @@
+{
+  "name": "@vaani/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript config presets for Vaani AI workspaces."
+}
