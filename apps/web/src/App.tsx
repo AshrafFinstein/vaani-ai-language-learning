@@ -18,13 +18,13 @@ import CallPage from '@/pages/app/Call';
 import MeetingsPage from '@/pages/app/Meetings';
 import MeetingSchedulePage from '@/pages/app/MeetingSchedule';
 import MeetingDetailPage from '@/pages/app/MeetingDetail';
+import CharactersPage from '@/pages/app/Characters';
+import DebatePage from '@/pages/app/Debate';
+import PhotoPage from '@/pages/app/Photo';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
 const COMING_SOON = [
-  'photo',
-  'debate',
-  'characters',
   'courses',
   'vocabulary',
   'grammar',
@@ -78,6 +78,12 @@ export default function App() {
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="meetings/schedule" element={<MeetingSchedulePage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />
+        <Route path="characters" element={<CharactersPage />} />
+        <Route path="characters/:id" element={<CharactersPage />} />
+        <Route path="debate" element={<DebatePage />} />
+        <Route path="debate/:id" element={<DebatePage />} />
+        <Route path="photo" element={<PhotoPage />} />
+        <Route path="photo/:id" element={<PhotoPage />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}

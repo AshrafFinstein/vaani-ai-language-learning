@@ -53,6 +53,19 @@ enum ConversationMode {
   CHAT
   ROLEPLAY
   DIALOGUE
+  CHARACTER
+  SCENARIO
+}
+
+// ── Advanced AI Modes (Phase 8) ─────────────────────────────────────────────
+enum DebateSide {
+  FOR
+  AGAINST
+}
+
+enum DebateStatus {
+  ACTIVE
+  CLOSED
 }
 
 // Practice categories; only CHAT is produced in Phase 3. Others are added with their features.
@@ -65,6 +78,8 @@ enum PracticeKind {
   WORD
   PHOTO
   DEBATE
+  CHARACTER
+  SCENARIO
 }
 
 // ── Meeting Intelligence (Phase 7B) ─────────────────────────────────────────
@@ -122,6 +137,8 @@ model User {
   practiceSessions PracticeSession[]
   meetings         Meeting[]
   meetingSettings  MeetingSettings?
+  debates          Debate[]
+  photoSessions    PhotoSession[]
 
   @@index([email])
 }
@@ -199,8 +216,11 @@ model Conversation {
   language     Language          @relation(fields: [languageCode], references: [code])
   mode         ConversationMode  @default(CHAT)
   topic        ConversationTopic @default(FREE)
-  // For ROLEPLAY/DIALOGUE modes: identifies the static scenario.
+  // For ROLEPLAY/DIALOGUE/SCENARIO modes: identifies the static scenario.
   scenarioKey  String?
+  // For CHARACTER mode: the persona driving the conversation (Phase 8).
+  characterId  String?
+  character    AICharacter?      @relation(fields: [characterId], references: [id], onDelete: SetNull)
   level        LearningLevel     @default(BEGINNER)
   title        String
   createdAt    DateTime          @default(now())
@@ -211,6 +231,7 @@ model Conversation {
 
   @@index([userId])
   @@index([userId, updatedAt])
+  @@index([characterId])
 }
 
 model ConversationMessage {
@@ -380,4 +401,90 @@ model MeetingSettings {
   retentionDays    Int      @default(30)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+// ── Advanced AI Modes (Phase 8) ─────────────────────────────────────────────
+
+/// A predefined AI persona for Character conversations (Phase 8). Seeded content;
+/// `persona` shapes the AI system prompt and is never shown to the learner directly.
+/// Character chats reuse the Conversation/ConversationMessage pipeline (mode = CHARACTER).
+model AICharacter {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  tagline     String
+  description String   @db.Text
+  setting     String
+  avatarEmoji String
+  greeting    String   @db.Text
+  persona     String   @db.Text
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  conversations Conversation[]
+}
+
+/// A Debate session (Phase 8): the learner argues one side of a motion, the AI argues
+/// the other across turns, then structured feedback is produced by the @vaani/ai
+/// abstraction. `topicKey` references a static topic in @vaani/types.
+model Debate {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  topicKey     String
+  motion       String        @db.Text
+  userSide     DebateSide
+  level        LearningLevel @default(BEGINNER)
+  status       DebateStatus  @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  messages DebateMessage[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model DebateMessage {
+  id        String      @id @default(cuid())
+  debateId  String
+  debate    Debate      @relation(fields: [debateId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  content   String      @db.Text
+  createdAt DateTime    @default(now())
+
+  @@index([debateId, createdAt])
+}
+
+/// A Photo conversation (Phase 8): the learner supplies an image (data-URL or remote
+/// URL, stored as-is — no heavy upload pipeline), a MOCK vision method produces a
+/// description, and the AI converses about it. No real image analysis happens here.
+model PhotoSession {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  imageUrl     String        @db.Text
+  description  String        @db.Text
+  level        LearningLevel @default(BEGINNER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  messages PhotoMessage[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model PhotoMessage {
+  id             String       @id @default(cuid())
+  photoSessionId String
+  photoSession   PhotoSession @relation(fields: [photoSessionId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([photoSessionId, createdAt])
 }

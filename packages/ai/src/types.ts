@@ -1,4 +1,4 @@
-import type { AIFeedback, LearningLevel, SentenceEvaluation } from '@vaani/types';
+import type { AIFeedback, DebateFeedback, LearningLevel, SentenceEvaluation } from '@vaani/types';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -27,6 +27,14 @@ export interface ChatResult {
   reply: string;
 }
 
+/** Result of a (mock) vision description for Photo mode. */
+export interface ImageDescriptionResult {
+  /** A natural-language description of the image the AI can converse about. */
+  description: string;
+  /** Salient objects/subjects detected — deterministic in the mock. */
+  tags: string[];
+}
+
 /**
  * The core AI abstraction. Feature code depends ONLY on this interface, never on a
  * concrete vendor SDK, so providers are swappable via configuration.
@@ -45,6 +53,19 @@ export interface AIProvider {
     answer: string,
     options?: ChatOptions,
   ): Promise<SentenceEvaluation>;
+  /**
+   * Vision: describe an image so the AI can converse about it (Photo mode). The
+   * argument is an image reference (data-URL or http(s) URL). The Mock returns a
+   * deterministic description — NO real image analysis or network call.
+   */
+  describeImage(image: string, options?: ChatOptions): Promise<ImageDescriptionResult>;
+  /** Structured debate scoring/feedback — always schema-validated (Debate mode). */
+  analyzeDebate(
+    motion: string,
+    userSide: 'FOR' | 'AGAINST',
+    messages: ChatMessage[],
+    options?: ChatOptions,
+  ): Promise<DebateFeedback>;
 }
 
 export interface SpeechToTextResult {

@@ -9,3 +9,6 @@ export * from './scenario.js';
 export * from './sentence.js';
 export * from './word.js';
 export * from './meeting.js';
+export * from './character.js';
+export * from './debate.js';
+export * from './photo.js';

@@ -37,8 +37,17 @@ export const CHAT_TOPICS: ChatTopicMeta[] = [
 export const MessageRole = z.enum(['USER', 'ASSISTANT']);
 export type MessageRole = z.infer<typeof MessageRole>;
 
-/** How a conversation is driven: open chat, a roleplay scenario, or a guided dialogue. */
-export const ConversationMode = z.enum(['CHAT', 'ROLEPLAY', 'DIALOGUE']);
+/**
+ * How a conversation is driven: open chat, a roleplay scenario, a guided dialogue,
+ * a character persona (Phase 8), or an open scenario chat (Phase 8, reuses roleplay content).
+ */
+export const ConversationMode = z.enum([
+  'CHAT',
+  'ROLEPLAY',
+  'DIALOGUE',
+  'CHARACTER',
+  'SCENARIO',
+]);
 export type ConversationMode = z.infer<typeof ConversationMode>;
 
 export const MessageDTO = z.object({

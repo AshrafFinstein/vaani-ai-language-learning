@@ -4,19 +4,26 @@ import {
   findDialogueScenario,
   findRoleplayScenario,
   type AIFeedback,
+  type CharacterDTO,
   type ConversationDetailDTO,
   type ConversationDTO,
   type ConversationSummaryDTO,
   type MessageDTO,
   type StartConversationInput,
 } from '@vaani/types';
-import { buildDialoguePrompt, buildRoleplayPrompt, type ChatMessage, type ChatOptions } from '@vaani/ai';
+import {
+  buildCharacterPrompt,
+  buildDialoguePrompt,
+  buildRoleplayPrompt,
+  type ChatMessage,
+  type ChatOptions,
+} from '@vaani/ai';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
 
 type ConversationWithMessages = Prisma.ConversationGetPayload<{
-  include: { messages: true; language: true };
+  include: { messages: true; language: true; character: true };
 }>;
 type Message = Prisma.ConversationMessageGetPayload<object>;
 
@@ -68,16 +75,42 @@ function buildContext(conv: ConversationWithMessages): {
     topic: topicLabel(conv.topic),
   };
 
-  // Roleplay/Dialogue modes drive the AI with a scenario-specific system prompt.
-  if (conv.mode === 'ROLEPLAY' && conv.scenarioKey) {
+  // Roleplay/Dialogue/Scenario/Character modes drive the AI with a specific system prompt.
+  if ((conv.mode === 'ROLEPLAY' || conv.mode === 'SCENARIO') && conv.scenarioKey) {
     const scenario = findRoleplayScenario(conv.scenarioKey);
     if (scenario) options.systemPrompt = buildRoleplayPrompt(scenario, options);
   } else if (conv.mode === 'DIALOGUE' && conv.scenarioKey) {
     const scenario = findDialogueScenario(conv.scenarioKey);
     if (scenario) options.systemPrompt = buildDialoguePrompt(scenario, options);
+  } else if (conv.mode === 'CHARACTER' && conv.character) {
+    options.systemPrompt = buildCharacterPrompt(toCharacterDTO(conv.character), options);
   }
 
   return { messages, options };
+}
+
+function toCharacterDTO(c: {
+  id: string;
+  key: string;
+  name: string;
+  tagline: string;
+  description: string;
+  setting: string;
+  avatarEmoji: string;
+  greeting: string;
+  persona: string;
+}): CharacterDTO {
+  return {
+    id: c.id,
+    key: c.key,
+    name: c.name,
+    tagline: c.tagline,
+    description: c.description,
+    setting: c.setting,
+    avatarEmoji: c.avatarEmoji,
+    greeting: c.greeting,
+    persona: c.persona,
+  };
 }
 
 async function getOwnedConversation(
@@ -86,7 +119,7 @@ async function getOwnedConversation(
 ): Promise<ConversationWithMessages> {
   const conv = await prisma.conversation.findFirst({
     where: { id: conversationId, userId },
-    include: { messages: { orderBy: { createdAt: 'asc' } }, language: true },
+    include: { messages: { orderBy: { createdAt: 'asc' } }, language: true, character: true },
   });
   if (!conv) throw ApiException.notFound('Conversation not found');
   return conv;
@@ -139,9 +172,9 @@ export const chatService = {
     // Resolve mode-specific title, scenario, and the AI's opening line (if any).
     let title: string;
     let opener: string | undefined;
-    if (input.mode === 'ROLEPLAY') {
+    if (input.mode === 'ROLEPLAY' || input.mode === 'SCENARIO') {
       const scenario = findRoleplayScenario(input.scenarioKey!);
-      if (!scenario) throw ApiException.badRequest('Unknown roleplay scenario');
+      if (!scenario) throw ApiException.badRequest('Unknown scenario');
       title = `${scenario.title} · ${language.name}`;
       opener = scenario.aiOpener;
     } else if (input.mode === 'DIALOGUE') {
@@ -166,6 +199,51 @@ export const chatService = {
         messages: opener ? { create: { role: 'ASSISTANT', content: opener } } : undefined,
         // Record the practice activity for future progress analytics.
         practiceSessions: { create: { userId, kind: input.mode } },
+      },
+    });
+    return toConversationDTO(conversation);
+  },
+
+  /**
+   * Starts a CHARACTER-mode conversation (Phase 8). Reuses the Conversation/streaming
+   * pipeline: the persona is stored via `characterId` and applied in {@link buildContext}.
+   */
+  async startCharacterConversation(
+    userId: string,
+    characterKey: string,
+    level: StartConversationInput['level'],
+    languageCode?: string,
+  ): Promise<ConversationDTO> {
+    const character = await prisma.aICharacter.findFirst({
+      where: { key: characterKey, isActive: true },
+    });
+    if (!character) throw ApiException.badRequest('Unknown character');
+
+    let resolvedCode = languageCode;
+    if (!resolvedCode) {
+      const profile = await prisma.profile.findUnique({ where: { userId } });
+      resolvedCode = profile?.learningLanguageCode ?? undefined;
+    }
+    if (!resolvedCode) {
+      throw ApiException.badRequest('Choose a learning language before starting a chat');
+    }
+    const language = await prisma.language.findFirst({
+      where: { code: resolvedCode, isActive: true },
+    });
+    if (!language) throw ApiException.badRequest('Unknown language');
+
+    const conversation = await prisma.conversation.create({
+      data: {
+        userId,
+        languageCode: resolvedCode,
+        mode: 'CHARACTER',
+        topic: 'FREE',
+        characterId: character.id,
+        level,
+        title: `${character.name} · ${language.name}`,
+        // Seed the character's in-character greeting.
+        messages: { create: { role: 'ASSISTANT', content: character.greeting } },
+        practiceSessions: { create: { userId, kind: 'CHARACTER' } },
       },
     });
     return toConversationDTO(conversation);

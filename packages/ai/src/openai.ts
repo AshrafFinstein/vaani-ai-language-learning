@@ -1,11 +1,24 @@
 import {
   AIFeedbackSchema,
+  DebateFeedbackSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
+  type DebateFeedback,
   type SentenceEvaluation,
 } from '@vaani/types';
-import type { AIProvider, ChatMessage, ChatOptions, ChatResult } from './types.js';
-import { buildFeedbackPrompt, buildSentenceEvalPrompt, buildSystemPrompt } from './prompt.js';
+import type {
+  AIProvider,
+  ChatMessage,
+  ChatOptions,
+  ChatResult,
+  ImageDescriptionResult,
+} from './types.js';
+import {
+  buildDebateFeedbackPrompt,
+  buildFeedbackPrompt,
+  buildSentenceEvalPrompt,
+  buildSystemPrompt,
+} from './prompt.js';
 
 export interface OpenAIProviderConfig {
   apiKey: string;
@@ -139,6 +152,51 @@ export class OpenAIProvider implements AIProvider {
       return SentenceEvaluationSchema.parse(obj);
     });
   }
+
+  async describeImage(image: string, _options?: ChatOptions): Promise<ImageDescriptionResult> {
+    // Uses the OpenAI-compatible multimodal message format (image_url accepts data-URLs).
+    const res = await this.call({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Describe this image in one or two sentences, then list 3-6 salient tags. Return ONLY JSON: {"description": string, "tags": string[]}.',
+            },
+            { type: 'image_url', image_url: { url: image } },
+          ],
+        },
+      ] as unknown as ChatMessage[],
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => ({
+      description: typeof obj.description === 'string' ? obj.description : 'An image.',
+      tags: Array.isArray(obj.tags) ? obj.tags.map(String) : [],
+    }));
+  }
+
+  async analyzeDebate(
+    motion: string,
+    userSide: 'FOR' | 'AGAINST',
+    messages: ChatMessage[],
+    options?: ChatOptions,
+  ): Promise<DebateFeedback> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildDebateFeedbackPrompt(motion, userSide, options) },
+        ...messages.filter((m) => m.role !== 'system'),
+        { role: 'user', content: 'Provide my debate feedback as JSON now.' },
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    const raw = data.choices?.[0]?.message?.content ?? '{}';
+    return parseDebateFeedback(raw);
+  }
 }
 
 /** Parses model JSON output defensively, then hands the object to a validator. */
@@ -179,4 +237,23 @@ export function parseFeedback(raw: string): AIFeedback {
   if (typeof obj.reply !== 'string') obj.reply = 'Here is some feedback on your conversation.';
   // Coerce/validate; schema defaults fill any remaining fields.
   return AIFeedbackSchema.parse(obj);
+}
+
+/** Extracts and validates DebateFeedback JSON from a model response (never trust raw output). */
+export function parseDebateFeedback(raw: string): DebateFeedback {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    parsed = match ? JSON.parse(match[0]) : {};
+  }
+  const obj = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  if (typeof obj.summary !== 'string') obj.summary = 'Here is some feedback on your debate.';
+  return DebateFeedbackSchema.parse(obj);
 }

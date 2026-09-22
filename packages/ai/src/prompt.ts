@@ -1,4 +1,4 @@
-import type { DialogueScenario, RoleplayScenario } from '@vaani/types';
+import type { CharacterDTO, DialogueScenario, RoleplayScenario } from '@vaani/types';
 import type { ChatOptions } from './types.js';
 
 const LEVEL_GUIDANCE: Record<string, string> = {
@@ -95,6 +95,91 @@ export function buildDialoguePrompt(scenario: DialogueScenario, options?: ChatOp
     `- Speak ONLY in ${language}, one short turn at a time.`,
     `- Keep the dialogue on track toward the goal and wrap up in about ${scenario.targetTurns} turns.`,
     `- If the learner's turn is unclear, gently offer a natural way to say it, then continue.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** System prompt that puts the AI in-character as a predefined persona (Character mode). */
+export function buildCharacterPrompt(character: CharacterDTO, options?: ChatOptions): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are ${character.name}, ${character.tagline}. Setting: ${character.setting}.`,
+    character.persona,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Guidelines:`,
+    `- Stay fully in character as ${character.name}; never reveal you are an AI.`,
+    `- Speak ONLY in ${language}, in short, natural turns (1-3 sentences).`,
+    `- Keep the conversation flowing and ask questions so the learner keeps talking.`,
+    `- Do NOT break character to correct mistakes.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * System prompt for Debate mode. The AI argues the side OPPOSITE the learner and pushes
+ * back with reasoned counter-arguments while staying respectful and level-appropriate.
+ */
+export function buildDebatePrompt(
+  motion: string,
+  userSide: 'FOR' | 'AGAINST',
+  options?: ChatOptions,
+): string {
+  const language = options?.languageName ?? 'the target language';
+  const aiSide = userSide === 'FOR' ? 'AGAINST' : 'FOR';
+  return [
+    `You are a sharp but respectful debate opponent. The motion is: "${motion}".`,
+    `The learner argues ${userSide} the motion. You argue ${aiSide} it — never switch sides.`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Guidelines:`,
+    `- Reply ONLY in ${language}, in 2-4 persuasive sentences.`,
+    `- Directly rebut the learner's latest point, then advance one new argument for your side.`,
+    `- Be firm and challenging but never rude; do not correct the learner's grammar.`,
+    `- End with a pointed question that presses the learner to defend their position.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * System prompt for scoring a debate. Instructs the model to return ONLY JSON matching
+ * the DebateFeedback schema; output is still validated with Zod on return.
+ */
+export function buildDebateFeedbackPrompt(
+  motion: string,
+  userSide: 'FOR' | 'AGAINST',
+  options?: ChatOptions,
+): string {
+  return [
+    `You are a debate coach scoring a learner who argued ${userSide} the motion: "${motion}".`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Assess ONLY the learner's messages (role "user"). Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "summary": string,                    // 1-2 sentence overall verdict`,
+    `  "strengths": string[],                // what they argued well`,
+    `  "improvements": string[],             // how to be more persuasive`,
+    `  "argument_quality_score": number,     // 0-100`,
+    `  "persuasiveness_score": number,       // 0-100`,
+    `  "overall_score": number               // 0-100`,
+    `}`,
+    `Use empty arrays when there is nothing to add. Do not wrap the JSON in markdown fences.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** System prompt for conversing about a photo (Photo mode), grounded in a mock description. */
+export function buildPhotoPrompt(description: string, options?: ChatOptions): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are Vaani, a warm language tutor discussing a photo the learner shared.`,
+    `Here is a description of the photo: "${description}".`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Guidelines:`,
+    `- Reply ONLY in ${language}, in short, conversational turns (1-3 sentences).`,
+    `- Talk about what is in the photo; ask the learner questions about it to keep them describing.`,
+    `- Do NOT correct mistakes inline; keep the conversation natural.`,
   ]
     .filter(Boolean)
     .join('\n');

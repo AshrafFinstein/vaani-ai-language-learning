@@ -47,9 +47,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Dialogue', to: '/app/dialogue', icon: MessageCircle },
       { label: 'Sentence', to: '/app/sentence', icon: Type },
       { label: 'Word', to: '/app/word', icon: BookA },
-      { label: 'Photo', to: '/app/photo', icon: Image },
-      { label: 'Debate', to: '/app/debate', icon: Scale },
-      { label: 'Characters', to: '/app/characters', icon: Users },
+      { label: 'Photo', to: '/app/photo', icon: Image, ready: true },
+      { label: 'Debate', to: '/app/debate', icon: Scale, ready: true },
+      { label: 'Characters', to: '/app/characters', icon: Users, ready: true },
     ],
   },
   {

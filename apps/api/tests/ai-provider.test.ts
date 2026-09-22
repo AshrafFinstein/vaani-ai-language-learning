@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   MockAIProvider,
   parseFeedback,
+  parseDebateFeedback,
   createAIProvider,
   buildRoleplayPrompt,
+  buildCharacterPrompt,
+  buildDebatePrompt,
+  buildPhotoPrompt,
 } from '@vaani/ai';
-import { ROLEPLAY_SCENARIOS } from '@vaani/types';
+import { DEBATE_TOPICS, ROLEPLAY_SCENARIOS, type CharacterDTO } from '@vaani/types';
 
 describe('MockAIProvider', () => {
   const provider = new MockAIProvider();
@@ -75,6 +79,108 @@ describe('buildRoleplayPrompt', () => {
     const prompt = buildRoleplayPrompt(scenario, { languageName: 'Spanish', level: 'BEGINNER' });
     expect(prompt).toContain(scenario.aiRole);
     expect(prompt).toContain('Spanish');
+  });
+});
+
+describe('MockAIProvider.describeImage (mock vision)', () => {
+  const provider = new MockAIProvider();
+
+  it('returns a deterministic description + tags for the same image', async () => {
+    const image = 'data:image/png;base64,AAAABBBBCCCC';
+    const a = await provider.describeImage(image);
+    const b = await provider.describeImage(image);
+    expect(a.description.length).toBeGreaterThan(0);
+    expect(a.tags.length).toBeGreaterThan(0);
+    // Deterministic: identical input yields identical output (no network, no keys).
+    expect(a).toEqual(b);
+  });
+
+  it('varies the description across different images', async () => {
+    const results = await Promise.all(
+      ['https://x/one.jpg', 'https://x/two.jpg', 'https://x/three.jpg', 'data:image/png;base64,ZZZZ'].map(
+        (img) => provider.describeImage(img),
+      ),
+    );
+    const unique = new Set(results.map((r) => r.description));
+    expect(unique.size).toBeGreaterThan(1);
+  });
+
+  it('accepts an http image URL as well as a data-URL', async () => {
+    const result = await provider.describeImage('https://example.com/pic.jpg');
+    expect(typeof result.description).toBe('string');
+    expect(Array.isArray(result.tags)).toBe(true);
+  });
+});
+
+describe('MockAIProvider.analyzeDebate', () => {
+  const provider = new MockAIProvider();
+
+  it('produces schema-valid debate feedback with bounded scores', async () => {
+    const messages = [
+      { role: 'user' as const, content: 'Remote work boosts focus and saves commute time every day.' },
+      { role: 'assistant' as const, content: 'But offices build culture and spontaneous collaboration.' },
+      { role: 'user' as const, content: 'Tools like video calls replace that collaboration effectively now.' },
+    ];
+    const feedback = await provider.analyzeDebate('Remote work is better.', 'FOR', messages);
+    expect(feedback.summary).toBeTruthy();
+    for (const score of [
+      feedback.argument_quality_score,
+      feedback.persuasiveness_score,
+      feedback.overall_score,
+    ]) {
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
+describe('parseDebateFeedback', () => {
+  it('parses fenced JSON and validates it', () => {
+    const raw = '```json\n{"summary":"Strong case","overall_score":88}\n```';
+    const fb = parseDebateFeedback(raw);
+    expect(fb.summary).toBe('Strong case');
+    expect(fb.overall_score).toBe(88);
+    expect(fb.strengths).toEqual([]); // schema default
+  });
+
+  it('never throws on garbage output', () => {
+    const fb = parseDebateFeedback('not json');
+    expect(fb.summary).toBeTruthy();
+    expect(fb.overall_score).toBe(0);
+  });
+});
+
+describe('advanced-mode prompts', () => {
+  const character: CharacterDTO = {
+    id: 'c1',
+    key: 'barista',
+    name: 'Mika',
+    tagline: 'a cheerful barista',
+    description: 'coffee chat',
+    setting: 'a café',
+    avatarEmoji: '☕',
+    greeting: 'Hi!',
+    persona: 'You love recommending drinks.',
+  };
+
+  it('buildCharacterPrompt embeds the persona name and language', () => {
+    const prompt = buildCharacterPrompt(character, { languageName: 'French', level: 'BEGINNER' });
+    expect(prompt).toContain('Mika');
+    expect(prompt).toContain('French');
+    expect(prompt).toContain(character.persona);
+  });
+
+  it('buildDebatePrompt assigns the AI the opposite side', () => {
+    const topic = DEBATE_TOPICS[0]!;
+    const prompt = buildDebatePrompt(topic.motion, 'FOR', { languageName: 'Spanish' });
+    expect(prompt).toContain(topic.motion);
+    expect(prompt).toContain('argue AGAINST');
+  });
+
+  it('buildPhotoPrompt grounds the AI in the description', () => {
+    const prompt = buildPhotoPrompt('A sunny beach with umbrellas.', { languageName: 'German' });
+    expect(prompt).toContain('sunny beach');
+    expect(prompt).toContain('German');
   });
 });
 

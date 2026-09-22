@@ -1,7 +1,9 @@
 import {
   AIFeedbackSchema,
+  DebateFeedbackSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
+  type DebateFeedback,
   type SentenceEvaluation,
 } from '@vaani/types';
 import type {
@@ -9,6 +11,7 @@ import type {
   ChatMessage,
   ChatOptions,
   ChatResult,
+  ImageDescriptionResult,
   SpeechToTextProvider,
   SpeechToTextResult,
   TextToSpeechProvider,
@@ -109,6 +112,73 @@ export class MockAIProvider implements AIProvider {
       grammar_score: isCorrect ? 95 : 75,
       naturalness_score: 80,
       overall_score: isCorrect ? 90 : 78,
+    });
+  }
+
+  /**
+   * Deterministic mock vision. NO real image analysis and no network call: a stable
+   * scene is chosen from a small catalogue by hashing the image reference, so the same
+   * image always yields the same description (important for reproducible tests).
+   */
+  async describeImage(image: string, _options?: ChatOptions): Promise<ImageDescriptionResult> {
+    const scenes: ImageDescriptionResult[] = [
+      {
+        description:
+          'A busy city street at golden hour, with people walking past cafés and warm light on the buildings.',
+        tags: ['city', 'street', 'people', 'café', 'sunset'],
+      },
+      {
+        description:
+          'A quiet beach with turquoise water, a few colorful umbrellas, and gentle waves reaching the sand.',
+        tags: ['beach', 'ocean', 'umbrella', 'sand', 'waves'],
+      },
+      {
+        description:
+          'A cozy kitchen where someone is cooking; fresh vegetables and steam rise from a pan on the stove.',
+        tags: ['kitchen', 'cooking', 'vegetables', 'stove', 'food'],
+      },
+      {
+        description:
+          'A green mountain trail winding through tall pine trees under a clear blue sky.',
+        tags: ['mountain', 'trail', 'forest', 'trees', 'sky'],
+      },
+      {
+        description:
+          'A group of friends laughing together around a table in a bright, plant-filled room.',
+        tags: ['friends', 'table', 'indoors', 'plants', 'laughing'],
+      },
+    ];
+    let hash = 0;
+    for (let i = 0; i < image.length; i++) hash = (hash * 31 + image.charCodeAt(i)) >>> 0;
+    return scenes[hash % scenes.length]!;
+  }
+
+  async analyzeDebate(
+    _motion: string,
+    _userSide: 'FOR' | 'AGAINST',
+    messages: ChatMessage[],
+    _options?: ChatOptions,
+  ): Promise<DebateFeedback> {
+    const userTurns = messages.filter((m) => m.role === 'user');
+    const totalWords = userTurns.reduce((n, m) => n + m.content.trim().split(/\s+/).length, 0);
+    const avgWords = userTurns.length ? Math.round(totalWords / userTurns.length) : 0;
+    const engaged = userTurns.length >= 2 && avgWords >= 12;
+
+    return DebateFeedbackSchema.parse({
+      summary: userTurns.length
+        ? engaged
+          ? 'You made a solid, well-developed case and engaged directly with the counter-arguments.'
+          : 'A promising start — your points are clear but could be developed with more evidence.'
+        : 'Make a few arguments first and I can score your debate.',
+      strengths: userTurns.length
+        ? ['Stated a clear position', 'Stayed on topic throughout']
+        : [],
+      improvements: engaged
+        ? ['Add concrete examples or data to strengthen your claims']
+        : ['Develop each point further', 'Directly rebut the opponent before adding new points'],
+      argument_quality_score: engaged ? 82 : 68,
+      persuasiveness_score: engaged ? 78 : 64,
+      overall_score: engaged ? 80 : 66,
     });
   }
 }
