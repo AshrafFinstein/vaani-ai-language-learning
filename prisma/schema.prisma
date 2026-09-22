@@ -120,6 +120,19 @@ enum ActionItemPriority {
   HIGH
 }
 
+// ── Courses (Phase 9) ───────────────────────────────────────────────────────
+enum ExerciseKind {
+  MULTIPLE_CHOICE
+  FILL_BLANK
+  TRANSLATE
+  FREE_RESPONSE
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -139,6 +152,8 @@ model User {
   meetingSettings  MeetingSettings?
   debates          Debate[]
   photoSessions    PhotoSession[]
+  courseEnrollments CourseEnrollment[]
+  lessonProgress    LessonProgress[]
 
   @@index([email])
 }
@@ -487,4 +502,109 @@ model PhotoMessage {
   createdAt      DateTime     @default(now())
 
   @@index([photoSessionId, createdAt])
+}
+
+// ── Courses (Phase 9) ───────────────────────────────────────────────────────
+
+/// A structured learning course (Phase 9, master plan §17). Seeded product content
+/// grouping modules → lessons → exercises. `languageCode` is the language the course
+/// teaches. Learners enroll to track progress.
+model Course {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  description     String        @db.Text
+  languageCode    String
+  level           LearningLevel @default(BEGINNER)
+  coverEmoji      String        @default("📘")
+  estimatedMinutes Int          @default(0)
+  sortOrder       Int           @default(0)
+  isPublished     Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+
+  @@index([languageCode])
+  @@index([isPublished, sortOrder])
+}
+
+/// An ordered section within a course grouping related lessons.
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String   @db.Text
+  ordinal     Int
+  createdAt   DateTime @default(now())
+
+  lessons Lesson[]
+
+  @@index([courseId, ordinal])
+}
+
+/// A single lesson within a module. `content` holds the teaching material (markdown-ish
+/// text); exercises reinforce it. Learners mark lessons complete to advance progress.
+model Lesson {
+  id          String   @id @default(cuid())
+  moduleId    String
+  module      CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  content     String   @db.Text
+  ordinal     Int
+  estimatedMinutes Int @default(5)
+  createdAt   DateTime @default(now())
+
+  exercises Exercise[]
+  progress  LessonProgress[]
+
+  @@index([moduleId, ordinal])
+}
+
+/// An exercise attached to a lesson. `options` (for MULTIPLE_CHOICE) is a string[]; the
+/// canonical `answer` is used for deterministic grading, while FREE_RESPONSE/TRANSLATE
+/// exercises are evaluated through the @vaani/ai abstraction.
+model Exercise {
+  id          String       @id @default(cuid())
+  lessonId    String
+  lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  kind        ExerciseKind @default(MULTIPLE_CHOICE)
+  prompt      String       @db.Text
+  options     String[]
+  answer      String       @db.Text
+  explanation String       @db.Text @default("")
+  ordinal     Int
+  createdAt   DateTime     @default(now())
+
+  @@index([lessonId, ordinal])
+}
+
+/// A learner's enrollment in a course. Progress is derived from LessonProgress rows.
+model CourseEnrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+}
+
+/// Records that a learner completed a lesson (Phase 9). Aggregated into course progress.
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
 }

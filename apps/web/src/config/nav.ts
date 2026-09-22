@@ -62,7 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Learn',
     items: [
-      { label: 'Courses', to: '/app/courses', icon: GraduationCap },
+      { label: 'Courses', to: '/app/courses', icon: GraduationCap, ready: true },
       { label: 'Vocabulary', to: '/app/vocabulary', icon: BookOpen },
       { label: 'Grammar', to: '/app/grammar', icon: SpellCheck },
       { label: 'Pronunciation', to: '/app/pronunciation', icon: Mic },

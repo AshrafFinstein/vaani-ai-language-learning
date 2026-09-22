@@ -1,4 +1,12 @@
-import type { AIFeedback, DebateFeedback, LearningLevel, SentenceEvaluation } from '@vaani/types';
+import type {
+  AIFeedback,
+  DebateFeedback,
+  ExerciseResult,
+  LearningLevel,
+  LearningPath,
+  LearningPathCatalogItem,
+  SentenceEvaluation,
+} from '@vaani/types';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -66,6 +74,26 @@ export interface AIProvider {
     messages: ChatMessage[],
     options?: ChatOptions,
   ): Promise<DebateFeedback>;
+  /**
+   * Grades one open-ended course exercise (translate / free-response) against an expected
+   * answer — always schema-validated (Course mode). Deterministic exercise kinds are graded
+   * by the service without the AI; this handles answers that need judgement.
+   */
+  evaluateExercise(
+    prompt: string,
+    expected: string,
+    answer: string,
+    options?: ChatOptions,
+  ): Promise<ExerciseResult>;
+  /**
+   * Generates a personalized learning path from the learner's level/goal and the available
+   * course catalog — always schema-validated (Course mode). The Mock is deterministic and
+   * makes NO network call. Recommendations reference only catalog slugs.
+   */
+  generateLearningPath(
+    catalog: LearningPathCatalogItem[],
+    options?: ChatOptions & { goal?: string },
+  ): Promise<LearningPath>;
 }
 
 export interface SpeechToTextResult {

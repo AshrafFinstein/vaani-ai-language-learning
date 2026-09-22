@@ -85,6 +85,269 @@ const CHARACTERS = [
   },
 ];
 
+/**
+ * Sample courses (Phase 9, master plan §17). All content is original Vaani AI material,
+ * structured as course → modules → lessons → exercises. Kept small but representative.
+ */
+const COURSES = [
+  {
+    slug: 'spanish-foundations',
+    title: 'Spanish Foundations',
+    description: 'Start speaking Spanish: greetings, introductions, and everyday essentials.',
+    languageCode: 'es',
+    level: 'BEGINNER' as const,
+    coverEmoji: '🇪🇸',
+    estimatedMinutes: 90,
+    sortOrder: 1,
+    modules: [
+      {
+        title: 'First Words',
+        description: 'Greet people and introduce yourself with confidence.',
+        lessons: [
+          {
+            title: 'Greetings',
+            content:
+              'Learn the core greetings: "hola" (hello), "buenos días" (good morning), and "adiós" (goodbye). Spanish greetings change with the time of day.',
+            estimatedMinutes: 6,
+            exercises: [
+              {
+                kind: 'MULTIPLE_CHOICE' as const,
+                prompt: 'Which word means "hello" in Spanish?',
+                options: ['Adiós', 'Hola', 'Gracias', 'Por favor'],
+                answer: 'Hola',
+                explanation: '"Hola" is the standard, all-purpose greeting.',
+              },
+              {
+                kind: 'TRANSLATE' as const,
+                prompt: 'Translate to Spanish: "Good morning".',
+                options: [],
+                answer: 'Buenos días',
+                explanation: 'Use "buenos días" until about midday.',
+              },
+            ],
+          },
+          {
+            title: 'Introducing Yourself',
+            content:
+              'Say your name with "Me llamo…" (My name is…) and ask "¿Cómo te llamas?" (What is your name?).',
+            estimatedMinutes: 7,
+            exercises: [
+              {
+                kind: 'FILL_BLANK' as const,
+                prompt: 'Complete: "Me ____ Ana." (My name is Ana.)',
+                options: [],
+                answer: 'llamo',
+                explanation: '"Me llamo" literally means "I call myself".',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Everyday Essentials',
+        description: 'Numbers and polite phrases you will use every day.',
+        lessons: [
+          {
+            title: 'Numbers 1–10',
+            content:
+              'Count from uno to diez: uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez.',
+            estimatedMinutes: 8,
+            exercises: [
+              {
+                kind: 'MULTIPLE_CHOICE' as const,
+                prompt: 'What is "three" in Spanish?',
+                options: ['Dos', 'Tres', 'Cuatro', 'Cinco'],
+                answer: 'Tres',
+                explanation: '"Tres" is three.',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'french-travel-basics',
+    title: 'French Travel Basics',
+    description: 'Handle real travel situations in French: directions, cafés, and check-ins.',
+    languageCode: 'fr',
+    level: 'ELEMENTARY' as const,
+    coverEmoji: '🇫🇷',
+    estimatedMinutes: 75,
+    sortOrder: 2,
+    modules: [
+      {
+        title: 'Getting Around',
+        description: 'Ask for directions and understand the answers.',
+        lessons: [
+          {
+            title: 'Asking for Directions',
+            content:
+              'Use "Où est…?" (Where is…?) and "à gauche/à droite" (left/right) to navigate a city.',
+            estimatedMinutes: 8,
+            exercises: [
+              {
+                kind: 'MULTIPLE_CHOICE' as const,
+                prompt: 'How do you ask "Where is the station?" in French?',
+                options: [
+                  'Où est la gare ?',
+                  'Quelle heure est-il ?',
+                  'Comment ça va ?',
+                  'Merci beaucoup',
+                ],
+                answer: 'Où est la gare ?',
+                explanation: '"Où est…" begins a "where is" question.',
+              },
+              {
+                kind: 'FREE_RESPONSE' as const,
+                prompt: 'Write a short sentence in French asking where the museum is.',
+                options: [],
+                answer: 'Où est le musée ?',
+                explanation: 'A natural phrasing is "Où est le musée ?".',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'At the Café',
+        description: 'Order food and drinks politely.',
+        lessons: [
+          {
+            title: 'Ordering a Coffee',
+            content:
+              'Order politely with "Je voudrais…" (I would like…) and "s\'il vous plaît" (please).',
+            estimatedMinutes: 7,
+            exercises: [
+              {
+                kind: 'TRANSLATE' as const,
+                prompt: 'Translate to French: "I would like a coffee, please."',
+                options: [],
+                answer: "Je voudrais un café, s'il vous plaît.",
+                explanation: '"Je voudrais" is the polite way to order.',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'english-conversation-boost',
+    title: 'English Conversation Boost',
+    description: 'Sharpen everyday English conversation, small talk, and natural phrasing.',
+    languageCode: 'en',
+    level: 'INTERMEDIATE' as const,
+    coverEmoji: '💬',
+    estimatedMinutes: 60,
+    sortOrder: 3,
+    modules: [
+      {
+        title: 'Small Talk',
+        description: 'Break the ice and keep a conversation flowing.',
+        lessons: [
+          {
+            title: 'Openers and Follow-ups',
+            content:
+              'Good openers ("How\'s your day going?") invite more than yes/no answers. Follow up with "What about you?" to keep it balanced.',
+            estimatedMinutes: 9,
+            exercises: [
+              {
+                kind: 'MULTIPLE_CHOICE' as const,
+                prompt: 'Which is the most natural small-talk opener?',
+                options: [
+                  'State your full name and job title.',
+                  "How's your day going?",
+                  'Recite the weather forecast.',
+                  'Say nothing and wait.',
+                ],
+                answer: "How's your day going?",
+                explanation: 'Open-ended, friendly questions invite conversation.',
+              },
+              {
+                kind: 'FREE_RESPONSE' as const,
+                prompt:
+                  'Write a friendly follow-up question you could ask after someone mentions their weekend.',
+                options: [],
+                answer: 'What did you get up to over the weekend?',
+                explanation: 'Follow-up questions show interest and keep the talk going.',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];
+
+async function seedCourses() {
+  for (const course of COURSES) {
+    const { modules } = course;
+    const saved = await prisma.course.upsert({
+      where: { slug: course.slug },
+      update: {
+        title: course.title,
+        description: course.description,
+        languageCode: course.languageCode,
+        level: course.level,
+        coverEmoji: course.coverEmoji,
+        estimatedMinutes: course.estimatedMinutes,
+        sortOrder: course.sortOrder,
+        isPublished: true,
+      },
+      create: {
+        slug: course.slug,
+        title: course.title,
+        description: course.description,
+        languageCode: course.languageCode,
+        level: course.level,
+        coverEmoji: course.coverEmoji,
+        estimatedMinutes: course.estimatedMinutes,
+        sortOrder: course.sortOrder,
+      },
+    });
+
+    // Rebuild the module/lesson/exercise tree deterministically on each seed run.
+    await prisma.courseModule.deleteMany({ where: { courseId: saved.id } });
+
+    for (const [mIndex, mod] of modules.entries()) {
+      const savedModule = await prisma.courseModule.create({
+        data: {
+          courseId: saved.id,
+          title: mod.title,
+          description: mod.description,
+          ordinal: mIndex,
+        },
+      });
+      for (const [lIndex, lesson] of mod.lessons.entries()) {
+        const savedLesson = await prisma.lesson.create({
+          data: {
+            moduleId: savedModule.id,
+            title: lesson.title,
+            content: lesson.content,
+            ordinal: lIndex,
+            estimatedMinutes: lesson.estimatedMinutes,
+          },
+        });
+        for (const [eIndex, ex] of lesson.exercises.entries()) {
+          await prisma.exercise.create({
+            data: {
+              lessonId: savedLesson.id,
+              kind: ex.kind,
+              prompt: ex.prompt,
+              options: ex.options,
+              answer: ex.answer,
+              explanation: ex.explanation,
+              ordinal: eIndex,
+            },
+          });
+        }
+      }
+    }
+  }
+  console.log(`Seeded ${COURSES.length} courses.`);
+}
+
 async function main() {
   for (const lang of LANGUAGES) {
     await prisma.language.upsert({
@@ -113,6 +376,8 @@ async function main() {
     });
   }
   console.log(`Seeded ${CHARACTERS.length} AI characters.`);
+
+  await seedCourses();
 }
 
 main()

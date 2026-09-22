@@ -12,3 +12,4 @@ export * from './meeting.js';
 export * from './character.js';
 export * from './debate.js';
 export * from './photo.js';
+export * from './course.js';

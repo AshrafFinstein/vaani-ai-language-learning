@@ -1,9 +1,14 @@
 import {
   AIFeedbackSchema,
   DebateFeedbackSchema,
+  ExerciseResultSchema,
+  LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
   type DebateFeedback,
+  type ExerciseResult,
+  type LearningPath,
+  type LearningPathCatalogItem,
   type SentenceEvaluation,
 } from '@vaani/types';
 import type {
@@ -15,7 +20,9 @@ import type {
 } from './types.js';
 import {
   buildDebateFeedbackPrompt,
+  buildExerciseEvalPrompt,
   buildFeedbackPrompt,
+  buildLearningPathPrompt,
   buildSentenceEvalPrompt,
   buildSystemPrompt,
 } from './prompt.js';
@@ -196,6 +203,49 @@ export class OpenAIProvider implements AIProvider {
     const data = (await res.json()) as OpenAIChoiceMessage;
     const raw = data.choices?.[0]?.message?.content ?? '{}';
     return parseDebateFeedback(raw);
+  }
+
+  async evaluateExercise(
+    prompt: string,
+    expected: string,
+    answer: string,
+    options?: ChatOptions,
+  ): Promise<ExerciseResult> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildExerciseEvalPrompt(prompt, expected, options) },
+        { role: 'user', content: answer },
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => {
+      if (typeof obj.correctAnswer !== 'string') obj.correctAnswer = expected;
+      if (typeof obj.feedback !== 'string') obj.feedback = '';
+      return ExerciseResultSchema.parse(obj);
+    });
+  }
+
+  async generateLearningPath(
+    catalog: LearningPathCatalogItem[],
+    options?: ChatOptions & { goal?: string },
+  ): Promise<LearningPath> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildLearningPathPrompt(catalog, options) },
+        { role: 'user', content: 'Generate my learning path as JSON now.' },
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    const allowed = new Set(catalog.map((c) => c.slug));
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => {
+      const parsed = LearningPathSchema.parse(obj);
+      // Defensively drop any step the model invented that isn't in the real catalog.
+      return { ...parsed, steps: parsed.steps.filter((s) => allowed.has(s.courseSlug)) };
+    });
   }
 }
 
