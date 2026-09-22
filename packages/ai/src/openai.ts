@@ -2,11 +2,13 @@ import {
   AIFeedbackSchema,
   DebateFeedbackSchema,
   ExerciseResultSchema,
+  GeneratedFlashcardDeckSchema,
   LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
   type DebateFeedback,
   type ExerciseResult,
+  type GeneratedFlashcardDeck,
   type LearningPath,
   type LearningPathCatalogItem,
   type SentenceEvaluation,
@@ -22,6 +24,7 @@ import {
   buildDebateFeedbackPrompt,
   buildExerciseEvalPrompt,
   buildFeedbackPrompt,
+  buildFlashcardPrompt,
   buildLearningPathPrompt,
   buildSentenceEvalPrompt,
   buildSystemPrompt,
@@ -245,6 +248,36 @@ export class OpenAIProvider implements AIProvider {
       const parsed = LearningPathSchema.parse(obj);
       // Defensively drop any step the model invented that isn't in the real catalog.
       return { ...parsed, steps: parsed.steps.filter((s) => allowed.has(s.courseSlug)) };
+    });
+  }
+
+  async generateFlashcards(
+    topic: string,
+    options?: ChatOptions & { count?: number },
+  ): Promise<GeneratedFlashcardDeck> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildFlashcardPrompt(topic, options) },
+        { role: 'user', content: 'Generate the flashcard deck as JSON now.' },
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => {
+      if (typeof obj.title !== 'string' || !obj.title) obj.title = `${topic} flashcards`;
+      if (typeof obj.description !== 'string') obj.description = '';
+      // Drop malformed card entries defensively before schema validation.
+      if (Array.isArray(obj.cards)) {
+        obj.cards = obj.cards.filter(
+          (c): c is Record<string, unknown> =>
+            Boolean(c) &&
+            typeof c === 'object' &&
+            typeof (c as Record<string, unknown>).term === 'string' &&
+            typeof (c as Record<string, unknown>).translation === 'string',
+        );
+      }
+      return GeneratedFlashcardDeckSchema.parse(obj);
     });
   }
 }

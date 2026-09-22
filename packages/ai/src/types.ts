@@ -2,6 +2,7 @@ import type {
   AIFeedback,
   DebateFeedback,
   ExerciseResult,
+  GeneratedFlashcardDeck,
   LearningLevel,
   LearningPath,
   LearningPathCatalogItem,
@@ -94,6 +95,15 @@ export interface AIProvider {
     catalog: LearningPathCatalogItem[],
     options?: ChatOptions & { goal?: string },
   ): Promise<LearningPath>;
+  /**
+   * Generates a vocabulary flashcard deck for a topic (Flashcards mode) — always
+   * schema-validated. The Mock is deterministic and makes NO network call so the same
+   * topic + options always yields the same deck (important for reproducible tests).
+   */
+  generateFlashcards(
+    topic: string,
+    options?: ChatOptions & { count?: number },
+  ): Promise<GeneratedFlashcardDeck>;
 }
 
 export interface SpeechToTextResult {

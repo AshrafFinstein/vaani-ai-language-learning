@@ -13,3 +13,5 @@ export * from './character.js';
 export * from './debate.js';
 export * from './photo.js';
 export * from './course.js';
+export * from './flashcard.js';
+export * from './explore.js';

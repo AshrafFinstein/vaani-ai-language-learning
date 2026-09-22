@@ -280,6 +280,72 @@ const COURSES = [
   },
 ];
 
+/**
+ * Sample shared flashcard decks. All content is original Vaani AI material. These are
+ * *system* decks (no owner) visible to every learner; users can also generate their own
+ * decks via the `@vaani/ai` abstraction at runtime.
+ */
+const FLASHCARD_DECKS = [
+  {
+    title: 'Spanish Travel Essentials',
+    description: 'Handy words and phrases for getting around while travelling in Spanish.',
+    languageCode: 'es',
+    sortOrder: 1,
+    cards: [
+      { term: 'el aeropuerto', translation: 'the airport', example: '¿Dónde está el aeropuerto?' },
+      { term: 'la estación', translation: 'the station', example: 'La estación está cerca.' },
+      { term: 'el billete', translation: 'the ticket', example: 'Necesito un billete, por favor.' },
+      { term: 'la maleta', translation: 'the suitcase', example: 'Mi maleta es azul.' },
+      { term: '¿Cuánto cuesta?', translation: 'How much is it?', example: '¿Cuánto cuesta el billete?' },
+      { term: 'a la derecha', translation: 'to the right', example: 'Gire a la derecha.' },
+    ],
+  },
+  {
+    title: 'French Café Basics',
+    description: 'Order food and drinks politely in a French café.',
+    languageCode: 'fr',
+    sortOrder: 2,
+    cards: [
+      { term: 'un café', translation: 'a coffee', example: 'Je voudrais un café, s\'il vous plaît.' },
+      { term: 'l\'addition', translation: 'the bill', example: 'L\'addition, s\'il vous plaît.' },
+      { term: 'une baguette', translation: 'a baguette', example: 'Une baguette, merci.' },
+      { term: 's\'il vous plaît', translation: 'please', example: 'Un thé, s\'il vous plaît.' },
+      { term: 'merci', translation: 'thank you', example: 'Merci beaucoup !' },
+    ],
+  },
+];
+
+async function seedFlashcardDecks() {
+  for (const deck of FLASHCARD_DECKS) {
+    // Deterministic re-seed: replace the system deck of this title if it already exists.
+    const existing = await prisma.flashcardDeck.findFirst({
+      where: { title: deck.title, isSystem: true },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.flashcardDeck.delete({ where: { id: existing.id } });
+    }
+    await prisma.flashcardDeck.create({
+      data: {
+        title: deck.title,
+        description: deck.description,
+        languageCode: deck.languageCode,
+        isSystem: true,
+        sortOrder: deck.sortOrder,
+        cards: {
+          create: deck.cards.map((c, i) => ({
+            term: c.term,
+            translation: c.translation,
+            example: c.example,
+            ordinal: i,
+          })),
+        },
+      },
+    });
+  }
+  console.log(`Seeded ${FLASHCARD_DECKS.length} flashcard decks.`);
+}
+
 async function seedCourses() {
   for (const course of COURSES) {
     const { modules } = course;
@@ -378,6 +444,7 @@ async function main() {
   console.log(`Seeded ${CHARACTERS.length} AI characters.`);
 
   await seedCourses();
+  await seedFlashcardDecks();
 }
 
 main()

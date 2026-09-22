@@ -9,6 +9,8 @@ import { characterRouter } from './modules/character/character.routes.js';
 import { debateRouter } from './modules/debate/debate.routes.js';
 import { photoRouter } from './modules/photo/photo.routes.js';
 import { courseRouter } from './modules/course/course.routes.js';
+import { flashcardRouter } from './modules/flashcard/flashcard.routes.js';
+import { exploreRouter } from './modules/explore/explore.routes.js';
 
 export const apiRouter = Router();
 
@@ -26,3 +28,5 @@ apiRouter.use('/characters', characterRouter);
 apiRouter.use('/debates', debateRouter);
 apiRouter.use('/photos', photoRouter);
 apiRouter.use('/courses', courseRouter);
+apiRouter.use('/flashcards', flashcardRouter);
+apiRouter.use('/explore', exploreRouter);

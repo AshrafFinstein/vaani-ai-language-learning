@@ -2,11 +2,13 @@ import {
   AIFeedbackSchema,
   DebateFeedbackSchema,
   ExerciseResultSchema,
+  GeneratedFlashcardDeckSchema,
   LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
   type DebateFeedback,
   type ExerciseResult,
+  type GeneratedFlashcardDeck,
   type LearningPath,
   type LearningPathCatalogItem,
   type SentenceEvaluation,
@@ -271,6 +273,53 @@ export class MockAIProvider implements AIProvider {
         ? `A ${steps.length}-step plan${goalText} that builds your skills course by course.`
         : 'No courses are available yet to build a learning path.',
       steps,
+    });
+  }
+
+  /**
+   * Deterministic flashcard generation. NO network call: cards are derived from the topic
+   * text itself (its words plus a stable set of learning-oriented templates), so the same
+   * topic + count always yields the same deck. Output is schema-validated on return.
+   */
+  async generateFlashcards(
+    topic: string,
+    options?: ChatOptions & { count?: number },
+  ): Promise<GeneratedFlashcardDeck> {
+    const language = options?.languageName ?? 'the target language';
+    const cleanTopic = topic.trim() || 'everyday vocabulary';
+    const count = Math.min(Math.max(options?.count ?? 8, 1), 30);
+
+    // A stable, hand-authored set of card *templates*. We rotate through them and key each
+    // card off the topic so the deck is topic-flavoured yet fully deterministic (no RNG).
+    const templates: Array<{ term: string; translation: string; example: string }> = [
+      { term: 'hello', translation: 'a greeting', example: 'I say hello when I meet someone new.' },
+      { term: 'please', translation: 'a polite request word', example: 'Could you help me, please?' },
+      { term: 'thank you', translation: 'an expression of gratitude', example: 'Thank you for your help.' },
+      { term: 'yes', translation: 'an affirmative answer', example: 'Yes, that sounds good.' },
+      { term: 'no', translation: 'a negative answer', example: 'No, not today.' },
+      { term: 'excuse me', translation: 'a phrase to get attention', example: 'Excuse me, where is the station?' },
+      { term: 'how much', translation: 'a phrase to ask a price', example: 'How much is this?' },
+      { term: 'where', translation: 'a word to ask about place', example: 'Where is the museum?' },
+      { term: 'water', translation: 'a drink of clear liquid', example: 'Can I have some water?' },
+      { term: 'help', translation: 'to give assistance', example: 'Can you help me?' },
+      { term: 'today', translation: 'the current day', example: 'What are we doing today?' },
+      { term: 'friend', translation: 'a person you like and trust', example: 'She is a good friend.' },
+    ];
+
+    const cards = Array.from({ length: count }, (_, i) => {
+      const t = templates[i % templates.length]!;
+      return {
+        // Prefix the term with the topic so decks are distinguishable and topic-flavoured.
+        term: `${cleanTopic}: ${t.term}`,
+        translation: t.translation,
+        example: t.example,
+      };
+    });
+
+    return GeneratedFlashcardDeckSchema.parse({
+      title: `${cleanTopic} flashcards`,
+      description: `A ${count}-card ${language} deck about ${cleanTopic}.`,
+      cards,
     });
   }
 }

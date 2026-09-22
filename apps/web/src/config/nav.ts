@@ -10,6 +10,8 @@ import {
   Scale,
   Users,
   GraduationCap,
+  Layers,
+  Compass,
   BookOpen,
   SpellCheck,
   Mic,
@@ -37,7 +39,10 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Overview',
-    items: [{ label: 'Dashboard', to: '/app/dashboard', icon: LayoutDashboard, ready: true }],
+    items: [
+      { label: 'Dashboard', to: '/app/dashboard', icon: LayoutDashboard, ready: true },
+      { label: 'Explore', to: '/app/explore', icon: Compass, ready: true },
+    ],
   },
   {
     title: 'Practice',
@@ -63,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Learn',
     items: [
       { label: 'Courses', to: '/app/courses', icon: GraduationCap, ready: true },
+      { label: 'Flashcards', to: '/app/flashcards', icon: Layers, ready: true },
       { label: 'Vocabulary', to: '/app/vocabulary', icon: BookOpen },
       { label: 'Grammar', to: '/app/grammar', icon: SpellCheck },
       { label: 'Pronunciation', to: '/app/pronunciation', icon: Mic },

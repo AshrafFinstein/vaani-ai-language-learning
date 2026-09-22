@@ -285,6 +285,46 @@ describe('buildLearningPathPrompt', () => {
   });
 });
 
+describe('MockAIProvider.generateFlashcards', () => {
+  const provider = new MockAIProvider();
+
+  it('is deterministic and schema-valid, with no network call', async () => {
+    const a = await provider.generateFlashcards('ordering food', {
+      languageName: 'Spanish',
+      level: 'BEGINNER',
+      count: 6,
+    });
+    const b = await provider.generateFlashcards('ordering food', {
+      languageName: 'Spanish',
+      level: 'BEGINNER',
+      count: 6,
+    });
+    expect(a).toEqual(b); // deterministic (no RNG, no keys)
+
+    expect(a.title).toBeTruthy();
+    expect(a.cards).toHaveLength(6);
+    for (const card of a.cards) {
+      expect(card.term.length).toBeGreaterThan(0);
+      expect(card.translation.length).toBeGreaterThan(0);
+      // The term is flavoured with the topic so decks are distinguishable.
+      expect(card.term).toContain('ordering food');
+    }
+  });
+
+  it('clamps the card count into a safe range', async () => {
+    const many = await provider.generateFlashcards('travel', { count: 999 });
+    expect(many.cards.length).toBeLessThanOrEqual(30);
+    const few = await provider.generateFlashcards('travel', { count: 0 });
+    expect(few.cards.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('produces different decks for different topics', async () => {
+    const one = await provider.generateFlashcards('cooking', { count: 3 });
+    const two = await provider.generateFlashcards('sports', { count: 3 });
+    expect(one.cards[0]!.term).not.toBe(two.cards[0]!.term);
+  });
+});
+
 describe('createAIProvider', () => {
   it('defaults to the mock provider when unset', () => {
     expect(createAIProvider({}).name).toBe('mock');

@@ -253,6 +253,35 @@ export function buildLearningPathPrompt(
     .join('\n');
 }
 
+/**
+ * System prompt for generating a vocabulary flashcard deck for a topic (Flashcards mode).
+ * Instructs the model to return ONLY JSON matching the GeneratedFlashcardDeck schema; the
+ * output is still validated with Zod on return.
+ */
+export function buildFlashcardPrompt(
+  topic: string,
+  options?: ChatOptions & { count?: number },
+): string {
+  const language = options?.languageName ?? 'the target language';
+  const count = Math.min(Math.max(options?.count ?? 8, 1), 30);
+  return [
+    `You are a ${language} vocabulary coach building a flashcard deck about "${topic}".`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Produce ${count} useful vocabulary cards relevant to the topic.`,
+    `Each card's "term" is a word or short phrase in ${language}; "translation" is its English meaning;`,
+    `"example" is a short natural example sentence in ${language} using the term.`,
+    `Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "title": string,                       // a short deck title`,
+    `  "description": string,                 // one-line description of the deck`,
+    `  "cards": [ { "term": string, "translation": string, "example": string } ]`,
+    `}`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /** System prompt for evaluating a single learner sentence (Sentence Mode). */
 export function buildSentenceEvalPrompt(prompt: string, options?: ChatOptions): string {
   const language = options?.languageName ?? 'the target language';

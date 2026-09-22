@@ -133,6 +133,15 @@ enum EnrollmentStatus {
   COMPLETED
 }
 
+// ── Flashcards (vocabulary decks + spaced-repetition review) ─────────────────
+/// The learner's self-graded result for one flashcard review, feeding the simple
+/// spaced-repetition scheduler (SM-2-inspired, kept deliberately small).
+enum FlashcardResult {
+  AGAIN
+  GOOD
+  EASY
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -154,6 +163,8 @@ model User {
   photoSessions    PhotoSession[]
   courseEnrollments CourseEnrollment[]
   lessonProgress    LessonProgress[]
+  flashcardDecks    FlashcardDeck[]
+  flashcardReviews  FlashcardReview[]
 
   @@index([email])
 }
@@ -607,4 +618,69 @@ model LessonProgress {
 
   @@unique([userId, lessonId])
   @@index([userId])
+}
+
+// ── Flashcards ───────────────────────────────────────────────────────────────
+
+/// A vocabulary flashcard deck. A deck is either a shared *system* deck (`userId`
+/// null, seeded product content) or a *user-owned* deck (e.g. AI-generated for a
+/// topic). Distinct from Word mode: decks carry a title/description and are studied
+/// with a spaced-repetition review flow. `languageCode` is the language being learned.
+model FlashcardDeck {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text @default("")
+  languageCode String
+  /// Null for shared system decks; set for a learner's own (or AI-generated) deck.
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// True for seeded/shared decks visible to everyone.
+  isSystem     Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cards Flashcard[]
+
+  @@index([userId])
+  @@index([isSystem, sortOrder])
+}
+
+/// A single card in a deck: the `term`/front (in the target language) and its
+/// `translation`/back, with an optional example sentence for context.
+model Flashcard {
+  id        String   @id @default(cuid())
+  deckId    String
+  deck      FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  term      String
+  translation String
+  example   String?  @db.Text
+  ordinal   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  reviews FlashcardReview[]
+
+  @@index([deckId, ordinal])
+}
+
+/// Per-user spaced-repetition state for one flashcard (SM-2-inspired). `ease` scales
+/// the interval growth, `intervalDays` is the current spacing, and `dueAt` is when the
+/// card should next be reviewed. Updated each time the learner grades a card.
+model FlashcardReview {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId  String
+  flashcard    Flashcard       @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  ease         Float           @default(2.5)
+  intervalDays Int             @default(0)
+  repetitions  Int             @default(0)
+  dueAt        DateTime        @default(now())
+  lastResult   FlashcardResult?
+  lastReviewedAt DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, flashcardId])
+  @@index([userId, dueAt])
 }
