@@ -16,6 +16,7 @@ import {
   BarChart3,
   History,
   Trophy,
+  CalendarClock,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,6 +50,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Photo', to: '/app/photo', icon: Image },
       { label: 'Debate', to: '/app/debate', icon: Scale },
       { label: 'Characters', to: '/app/characters', icon: Users },
+    ],
+  },
+  {
+    title: 'Meetings',
+    items: [
+      { label: 'Meetings', to: '/app/meetings', icon: CalendarClock, ready: true },
     ],
   },
   {

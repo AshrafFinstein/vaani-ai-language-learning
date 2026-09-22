@@ -4,6 +4,7 @@ import { userRouter } from './modules/user/user.routes.js';
 import { languageRouter } from './modules/language/language.routes.js';
 import { chatRouter } from './modules/chat/chat.routes.js';
 import { practiceRouter } from './modules/practice/practice.routes.js';
+import { meetingRouter } from './modules/meeting/meeting.routes.js';
 
 export const apiRouter = Router();
 
@@ -16,3 +17,4 @@ apiRouter.use('/user', userRouter);
 apiRouter.use('/languages', languageRouter);
 apiRouter.use('/chat', chatRouter);
 apiRouter.use('/practice', practiceRouter);
+apiRouter.use('/meetings', meetingRouter);

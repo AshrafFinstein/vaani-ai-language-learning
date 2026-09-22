@@ -8,3 +8,4 @@ export * from './chat.js';
 export * from './scenario.js';
 export * from './sentence.js';
 export * from './word.js';
+export * from './meeting.js';

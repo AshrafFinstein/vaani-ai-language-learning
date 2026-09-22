@@ -15,6 +15,9 @@ import DialoguePage from '@/pages/app/Dialogue';
 import SentencePage from '@/pages/app/Sentence';
 import WordPage from '@/pages/app/Word';
 import CallPage from '@/pages/app/Call';
+import MeetingsPage from '@/pages/app/Meetings';
+import MeetingSchedulePage from '@/pages/app/MeetingSchedule';
+import MeetingDetailPage from '@/pages/app/MeetingDetail';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
@@ -72,6 +75,9 @@ export default function App() {
         <Route path="sentence" element={<SentencePage />} />
         <Route path="word" element={<WordPage />} />
         <Route path="call" element={<CallPage />} />
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/schedule" element={<MeetingSchedulePage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}
