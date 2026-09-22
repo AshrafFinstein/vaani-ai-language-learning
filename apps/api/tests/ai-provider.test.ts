@@ -8,8 +8,14 @@ import {
   buildCharacterPrompt,
   buildDebatePrompt,
   buildPhotoPrompt,
+  buildLearningPathPrompt,
 } from '@vaani/ai';
-import { DEBATE_TOPICS, ROLEPLAY_SCENARIOS, type CharacterDTO } from '@vaani/types';
+import {
+  DEBATE_TOPICS,
+  ROLEPLAY_SCENARIOS,
+  type CharacterDTO,
+  type LearningPathCatalogItem,
+} from '@vaani/types';
 
 describe('MockAIProvider', () => {
   const provider = new MockAIProvider();
@@ -181,6 +187,101 @@ describe('advanced-mode prompts', () => {
     const prompt = buildPhotoPrompt('A sunny beach with umbrellas.', { languageName: 'German' });
     expect(prompt).toContain('sunny beach');
     expect(prompt).toContain('German');
+  });
+});
+
+describe('MockAIProvider.evaluateExercise (course grading)', () => {
+  const provider = new MockAIProvider();
+
+  it('marks a matching answer correct with full score, no network call', async () => {
+    const result = await provider.evaluateExercise(
+      'Translate to Spanish: Good morning.',
+      'Buenos días',
+      'buenos dias',
+    );
+    expect(result.isCorrect).toBe(true);
+    expect(result.correctAnswer).toBe('Buenos días');
+    expect(result.score).toBe(100);
+  });
+
+  it('marks an unrelated answer incorrect with a low score', async () => {
+    const result = await provider.evaluateExercise(
+      'Translate to Spanish: Good morning.',
+      'Buenos días',
+      'completely wrong text here',
+    );
+    expect(result.isCorrect).toBe(false);
+    expect(result.score).toBeLessThan(60);
+  });
+});
+
+describe('MockAIProvider.generateLearningPath', () => {
+  const provider = new MockAIProvider();
+  const catalog: LearningPathCatalogItem[] = [
+    {
+      slug: 'spanish-foundations',
+      title: 'Spanish Foundations',
+      level: 'BEGINNER',
+      languageCode: 'es',
+      description: 'Greetings and essentials.',
+    },
+    {
+      slug: 'spanish-intermediate',
+      title: 'Spanish Intermediate',
+      level: 'INTERMEDIATE',
+      languageCode: 'es',
+      description: 'Deeper conversation.',
+    },
+    {
+      slug: 'french-travel-basics',
+      title: 'French Travel Basics',
+      level: 'ELEMENTARY',
+      languageCode: 'fr',
+      description: 'Travel phrases.',
+    },
+  ];
+
+  it('is deterministic and recommends only real catalog slugs, easiest first', async () => {
+    const a = await provider.generateLearningPath(catalog, { languageCode: 'es', level: 'BEGINNER' });
+    const b = await provider.generateLearningPath(catalog, { languageCode: 'es', level: 'BEGINNER' });
+    expect(a).toEqual(b); // deterministic, no network/keys
+
+    expect(a.summary).toBeTruthy();
+    expect(a.steps.length).toBeGreaterThan(0);
+    const allowed = new Set(catalog.map((c) => c.slug));
+    for (const step of a.steps) expect(allowed.has(step.courseSlug)).toBe(true);
+    // Filtered to Spanish and ordered by level (BEGINNER before INTERMEDIATE).
+    expect(a.steps.map((s) => s.courseSlug)).toEqual([
+      'spanish-foundations',
+      'spanish-intermediate',
+    ]);
+  });
+
+  it('returns an empty plan (no throw) for an empty catalog', async () => {
+    const path = await provider.generateLearningPath([]);
+    expect(path.steps).toEqual([]);
+    expect(path.summary).toBeTruthy();
+  });
+});
+
+describe('buildLearningPathPrompt', () => {
+  it('lists the catalog slugs and forbids inventing new ones', () => {
+    const prompt = buildLearningPathPrompt(
+      [
+        {
+          slug: 'spanish-foundations',
+          title: 'Spanish Foundations',
+          level: 'BEGINNER',
+          languageCode: 'es',
+          description: 'Greetings.',
+        },
+      ],
+      { languageName: 'Spanish', level: 'BEGINNER', goal: 'travel' },
+    );
+    expect(prompt).toContain('spanish-foundations');
+    expect(prompt).toContain('Spanish');
+    expect(prompt).toContain('travel');
+    expect(prompt).toContain('never invent a slug');
   });
 });
 

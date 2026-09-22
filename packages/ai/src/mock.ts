@@ -1,9 +1,14 @@
 import {
   AIFeedbackSchema,
   DebateFeedbackSchema,
+  ExerciseResultSchema,
+  LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
   type DebateFeedback,
+  type ExerciseResult,
+  type LearningPath,
+  type LearningPathCatalogItem,
   type SentenceEvaluation,
 } from '@vaani/types';
 import type {
@@ -179,6 +184,93 @@ export class MockAIProvider implements AIProvider {
       argument_quality_score: engaged ? 82 : 68,
       persuasiveness_score: engaged ? 78 : 64,
       overall_score: engaged ? 80 : 66,
+    });
+  }
+
+  /**
+   * Deterministic open-ended exercise grading. NO network call: compares a normalised
+   * version of the learner's answer against the expected answer, awarding partial credit
+   * when the expected answer's keywords are present. The same input always yields the same
+   * result (important for reproducible tests).
+   */
+  async evaluateExercise(
+    _prompt: string,
+    expected: string,
+    answer: string,
+    _options?: ChatOptions,
+  ): Promise<ExerciseResult> {
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^\p{L}\p{N}\s]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const a = normalize(answer);
+    const e = normalize(expected);
+    const exact = a === e;
+
+    const expectedWords = e.split(' ').filter(Boolean);
+    const answerWords = new Set(a.split(' ').filter(Boolean));
+    const overlap = expectedWords.filter((w) => answerWords.has(w)).length;
+    const ratio = expectedWords.length ? overlap / expectedWords.length : a.length ? 1 : 0;
+    const isCorrect = exact || ratio >= 0.6;
+    const score = exact ? 100 : Math.round(ratio * 100);
+
+    return ExerciseResultSchema.parse({
+      isCorrect,
+      correctAnswer: expected,
+      feedback: isCorrect
+        ? 'Nicely done — your answer matches the target meaning.'
+        : `Not quite. Compare your answer with the expected one and try again.`,
+      score,
+    });
+  }
+
+  /**
+   * Deterministic learning-path generation. NO network call: filters the catalog to the
+   * learner's language when known, sorts by level then title, and takes the first few as an
+   * ordered plan. Only real catalog slugs are recommended.
+   */
+  async generateLearningPath(
+    catalog: LearningPathCatalogItem[],
+    options?: ChatOptions & { goal?: string },
+  ): Promise<LearningPath> {
+    const levelRank: Record<string, number> = {
+      BEGINNER: 0,
+      ELEMENTARY: 1,
+      INTERMEDIATE: 2,
+      UPPER_INTERMEDIATE: 3,
+      ADVANCED: 4,
+    };
+
+    const relevant = options?.languageCode
+      ? catalog.filter((c) => c.languageCode === options.languageCode)
+      : [...catalog];
+    const pool = relevant.length ? relevant : [...catalog];
+
+    const ordered = [...pool].sort((x, y) => {
+      const byLevel = (levelRank[x.level] ?? 0) - (levelRank[y.level] ?? 0);
+      return byLevel !== 0 ? byLevel : x.title.localeCompare(y.title);
+    });
+
+    const steps = ordered.slice(0, 4).map((c, i) => ({
+      courseSlug: c.slug,
+      title: c.title,
+      reason:
+        i === 0
+          ? 'Start here to build a solid foundation at your current level.'
+          : `Continue with this ${c.level.toLowerCase().replace(/_/g, ' ')} course to keep progressing.`,
+    }));
+
+    const goalText = options?.goal ? ` toward your goal "${options.goal}"` : '';
+    return LearningPathSchema.parse({
+      summary: steps.length
+        ? `A ${steps.length}-step plan${goalText} that builds your skills course by course.`
+        : 'No courses are available yet to build a learning path.',
+      steps,
     });
   }
 }

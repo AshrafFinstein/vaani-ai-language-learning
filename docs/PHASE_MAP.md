@@ -17,7 +17,7 @@ _Last updated: 2026-09-22._
 | P7A | 7 | Voice: STT/TTS, voice conversation, recording controls (mic/speaker device selection deferred) | Ph 5 | ✅ Done (device picker deferred to real-capture phase) | `feature/phase-4-5-modes` |
 | P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ✅ Done (mock; real capture deferred) | `feature/phase-7b-meeting-intelligence` fa554c4 → develop |
 | P8 | 8 | Advanced AI modes: photo, debate, characters, scenarios | Ph 6 | ✅ Done (mock vision) | `feature/phase-8-advanced-modes` → develop |
-| P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ❌ Not started | — |
+| P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ✅ Done (feature branch; gate green) | `feature/phase-9-courses` |
 | P10 | 10 | Progress + analytics (incl. meeting analytics) | Ph 8 | ❌ Not started | — |
 | P11–12 | 11 | QA / security / deployment | Ph 10 | ❌ Not started | — |
 

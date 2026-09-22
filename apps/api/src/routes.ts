@@ -8,6 +8,7 @@ import { meetingRouter } from './modules/meeting/meeting.routes.js';
 import { characterRouter } from './modules/character/character.routes.js';
 import { debateRouter } from './modules/debate/debate.routes.js';
 import { photoRouter } from './modules/photo/photo.routes.js';
+import { courseRouter } from './modules/course/course.routes.js';
 
 export const apiRouter = Router();
 
@@ -24,3 +25,4 @@ apiRouter.use('/meetings', meetingRouter);
 apiRouter.use('/characters', characterRouter);
 apiRouter.use('/debates', debateRouter);
 apiRouter.use('/photos', photoRouter);
+apiRouter.use('/courses', courseRouter);
