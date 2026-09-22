@@ -144,3 +144,10 @@ vite.config.ts.timestamp-*
 
 # Claude Code local worktrees/state
 .claude/
+
+# Reference screenshots are third-party (Talkpal) analysis material — keep local, do not redistribute
+reference/*.png
+reference/*.jpg
+reference/*.jpeg
+reference/*.gif
+reference/*.mp4
