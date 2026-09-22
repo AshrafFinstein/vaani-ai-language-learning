@@ -13,6 +13,7 @@
   "dependencies": {
     "@prisma/client": "^5.20.0",
     "@vaani/ai": "0.1.0",
+    "@vaani/meeting": "0.1.0",
     "@vaani/types": "0.1.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

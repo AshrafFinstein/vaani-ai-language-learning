@@ -32,6 +32,79 @@ enum ThemePreference {
   SYSTEM
 }
 
+enum ConversationTopic {
+  DAILY
+  TRAVEL
+  JOB_INTERVIEW
+  WORKPLACE
+  SHOPPING
+  RESTAURANT
+  FRIENDS
+  TECHNOLOGY
+  FREE
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum ConversationMode {
+  CHAT
+  ROLEPLAY
+  DIALOGUE
+}
+
+// Practice categories; only CHAT is produced in Phase 3. Others are added with their features.
+enum PracticeKind {
+  CHAT
+  ROLEPLAY
+  CALL
+  DIALOGUE
+  SENTENCE
+  WORD
+  PHOTO
+  DEBATE
+}
+
+// ── Meeting Intelligence (Phase 7B) ─────────────────────────────────────────
+// A MOCK/prototype module: scheduling, consent-gated recording *state*, and
+// analysis produced by a mock provider. NO real Teams/AVD/desktop/audio capture
+// is implemented here (deferred pending environment validation).
+
+enum MeetingProvider {
+  TEAMS
+  AVD
+  OTHER
+}
+
+enum RecordingState {
+  IDLE
+  RECORDING
+  PAUSED
+  STOPPED
+}
+
+enum MeetingAnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ActionItemStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum ActionItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -42,9 +115,13 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile       Profile?
-  sessions      Session[]
-  userLanguages UserLanguage[]
+  profile          Profile?
+  sessions         Session[]
+  userLanguages    UserLanguage[]
+  conversations    Conversation[]
+  practiceSessions PracticeSession[]
+  meetings         Meeting[]
+  meetingSettings  MeetingSettings?
 
   @@index([email])
 }
@@ -78,6 +155,7 @@ model Language {
 
   profilesLearning Profile[]      @relation("ProfileLearningLanguage")
   userLanguages    UserLanguage[]
+  conversations    Conversation[]
 }
 
 /// Languages a user is actively learning (a user may learn several over time).
@@ -110,4 +188,196 @@ model Session {
   createdAt        DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// An AI Chat conversation (Phase 3). Groups an ordered list of messages.
+model Conversation {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  language     Language          @relation(fields: [languageCode], references: [code])
+  mode         ConversationMode  @default(CHAT)
+  topic        ConversationTopic @default(FREE)
+  // For ROLEPLAY/DIALOGUE modes: identifies the static scenario.
+  scenarioKey  String?
+  level        LearningLevel     @default(BEGINNER)
+  title        String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  messages         ConversationMessage[]
+  practiceSessions PracticeSession[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model ConversationMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// Records that a practice activity happened (Phase 3 creates these for chat).
+/// Progress/analytics (Phase 8) aggregates them.
+model PracticeSession {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind            PracticeKind
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  startedAt       DateTime      @default(now())
+  endedAt         DateTime?
+  durationSeconds Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// A scheduled meeting (Phase 7B). Owns its participants, a single recording
+/// session, an optional transcript, and — after mock analysis — a summary,
+/// decisions, and action items.
+model Meeting {
+  id                   String                @id @default(cuid())
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                String
+  provider             MeetingProvider       @default(TEAMS)
+  scheduledStart       DateTime
+  scheduledEnd         DateTime
+  recordingEnabled     Boolean               @default(false)
+  transcriptionEnabled Boolean               @default(false)
+  aiAnalysisEnabled    Boolean               @default(true)
+  analysisStatus       MeetingAnalysisStatus @default(PENDING)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  participants MeetingParticipant[]
+  recording    RecordingSession?
+  transcript   Transcript?
+  summary      MeetingSummary?
+  decisions    MeetingDecision[]
+  actionItems  ActionItem[]
+
+  @@index([userId])
+  @@index([userId, scheduledStart])
+}
+
+/// A meeting participant. `speakerLabel` links a participant to transcript
+/// segments in the mock pipeline. Participants are supplied at schedule time —
+/// the analyzer NEVER invents new ones.
+model MeetingParticipant {
+  id           String  @id @default(cuid())
+  meetingId    String
+  meeting      Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  role         String?
+  speakerLabel String?
+
+  @@index([meetingId])
+}
+
+/// Consent-gated recording lifecycle. State transitions only — this phase does
+/// NOT capture real audio/video. A session cannot enter RECORDING without
+/// `recordingConsent = true`.
+model RecordingSession {
+  id               String         @id @default(cuid())
+  meetingId        String         @unique
+  meeting          Meeting        @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  state            RecordingState @default(IDLE)
+  recordingConsent Boolean        @default(false)
+  transcriptConsent Boolean       @default(false)
+  startedAt        DateTime?
+  endedAt          DateTime?
+  durationSeconds  Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+/// A meeting transcript (mock). Composed of ordered speaker-labelled segments.
+model Transcript {
+  id        String              @id @default(cuid())
+  meetingId String              @unique
+  meeting   Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  language  String?
+  createdAt DateTime            @default(now())
+  segments  TranscriptSegment[]
+}
+
+model TranscriptSegment {
+  id           String     @id @default(cuid())
+  transcriptId String
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  speakerLabel String
+  text         String     @db.Text
+  startMs      Int
+  endMs        Int
+  ordinal      Int
+
+  @@index([transcriptId, ordinal])
+}
+
+/// Narrative analysis for a meeting. Arrays are stored as string[] columns.
+model MeetingSummary {
+  id               String   @id @default(cuid())
+  meetingId        String   @unique
+  meeting          Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  overview         String   @db.Text
+  discussionPoints String[]
+  risks            String[]
+  questions        String[]
+  nextSteps        String[]
+  createdAt        DateTime @default(now())
+}
+
+/// A key decision extracted from the (mock) transcript. `decidedBy` is
+/// `Unassigned` when the transcript does not attribute it.
+model MeetingDecision {
+  id          String  @id @default(cuid())
+  meetingId   String
+  meeting     Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  description String  @db.Text
+  decidedBy   String  @default("Unassigned")
+  confidence  Float   @default(0)
+
+  @@index([meetingId])
+}
+
+/// An action item extracted from the (mock) transcript. `owner` defaults to
+/// `Unassigned` and `dueDate` to `Not specified` when unsupported by the transcript.
+model ActionItem {
+  id          String             @id @default(cuid())
+  meetingId   String
+  meeting     Meeting            @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  ordinal     Int
+  description String             @db.Text
+  owner       String             @default("Unassigned")
+  dueDate     String             @default("Not specified")
+  status      ActionItemStatus   @default(OPEN)
+  priority    ActionItemPriority @default(MEDIUM)
+  confidence  Float              @default(0)
+
+  @@index([meetingId, ordinal])
+}
+
+/// Per-user privacy defaults for meeting recording/transcription.
+model MeetingSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recordingConsent Boolean  @default(false)
+  transcriptConsent Boolean @default(false)
+  autoRecord       Boolean  @default(false)
+  autoTranscribe   Boolean  @default(false)
+  retentionDays    Int      @default(30)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

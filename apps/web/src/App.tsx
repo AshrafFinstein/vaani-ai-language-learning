@@ -9,16 +9,19 @@ import RegisterPage from '@/pages/public/Register';
 import ForgotPasswordPage from '@/pages/public/ForgotPassword';
 import MarketingPlaceholder from '@/pages/public/MarketingPlaceholder';
 import DashboardPage from '@/pages/app/Dashboard';
+import ChatPage from '@/pages/app/Chat';
+import RoleplayPage from '@/pages/app/Roleplay';
+import DialoguePage from '@/pages/app/Dialogue';
+import SentencePage from '@/pages/app/Sentence';
+import WordPage from '@/pages/app/Word';
+import CallPage from '@/pages/app/Call';
+import MeetingsPage from '@/pages/app/Meetings';
+import MeetingSchedulePage from '@/pages/app/MeetingSchedule';
+import MeetingDetailPage from '@/pages/app/MeetingDetail';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
 const COMING_SOON = [
-  'chat',
-  'roleplay',
-  'call',
-  'dialogue',
-  'sentence',
-  'word',
   'photo',
   'debate',
   'characters',
@@ -63,6 +66,18 @@ export default function App() {
       >
         <Route index element={<Navigate to="/app/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="chat/:id" element={<ChatPage />} />
+        <Route path="roleplay" element={<RoleplayPage />} />
+        <Route path="roleplay/:id" element={<RoleplayPage />} />
+        <Route path="dialogue" element={<DialoguePage />} />
+        <Route path="dialogue/:id" element={<DialoguePage />} />
+        <Route path="sentence" element={<SentencePage />} />
+        <Route path="word" element={<WordPage />} />
+        <Route path="call" element={<CallPage />} />
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/schedule" element={<MeetingSchedulePage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}
