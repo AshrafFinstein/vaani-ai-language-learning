@@ -17,6 +17,7 @@ import {
   History,
   Trophy,
   CalendarClock,
+  User,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -75,6 +76,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Achievements', to: '/app/achievements', icon: Trophy },
     ],
   },
+  {
+    title: 'Account',
+    items: [{ label: 'Profile', to: '/app/profile', icon: User, ready: true }],
+  },
 ];
 
 /** Condensed set for the mobile bottom navigation bar. */
@@ -82,5 +87,5 @@ export const MOBILE_NAV: NavItem[] = [
   { label: 'Home', to: '/app/dashboard', icon: LayoutDashboard, ready: true },
   { label: 'Chat', to: '/app/chat', icon: MessagesSquare },
   { label: 'Courses', to: '/app/courses', icon: GraduationCap },
-  { label: 'Progress', to: '/app/progress', icon: BarChart3 },
+  { label: 'Profile', to: '/app/profile', icon: User, ready: true },
 ];
