@@ -14,8 +14,9 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
   - P7A Voice: STT/TTS + Call page voice conversation done (mic/speaker device picker deferred).
   - P7B Meeting Intelligence: done (mock; real Teams/AVD capture deferred).
 - ✅ P8 Advanced AI modes (characters, debate, photo w/ mock vision, scenarios) — done, integrated.
-- ⚠️ P1/P2 research + architecture docs — partial; `/reference/` assets missing.
-- `develop` integrates P3–P8 (Phase 2 profile merged as 0421ec5); gate green: 94 tests.
+- ✅ P9 Courses (catalog, modules, lessons, exercises, progress, AI learning path) — done, integrated.
+- ✅ P1/P2 docs — delivered (research from `/reference/` screenshots; architecture from codebase).
+- `develop` integrates P1–P9; gate green: 115 tests.
 
 ## Gate (must all exit 0, re-run independently)
 `npm run typecheck` · `npm run lint` · `npm run test`
@@ -28,6 +29,7 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 | feature/phase-4-5-modes (ec53c5d) | P5,P6,P7A | ✅ typecheck+lint+41 tests | ✅ develop = ec53c5d |
 | feature/phase-7b-meeting-intelligence (fa554c4) | P7B | ✅ typecheck+lint+60 tests | ✅ develop = fa554c4 |
 | feature/phase-8-advanced-modes | P8 | ✅ typecheck+lint+94 tests | ✅ merged into develop |
+| feature/phase-9-courses (5413a48) + P1/P2 docs | P9,P1,P2 | ✅ typecheck+lint+115 tests | ✅ merged into develop |
 
 ## Open coordination notes
 - A background agent owns worktree `.claude/worktrees/phase-3` on `feature/phase-4-5-modes`; it
