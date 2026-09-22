@@ -18,12 +18,14 @@ _Last updated: 2026-09-22._
 | P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ✅ Done (mock; real capture deferred) | `feature/phase-7b-meeting-intelligence` fa554c4 → develop |
 | P8 | 8 | Advanced AI modes: photo, debate, characters, scenarios | Ph 6 | ✅ Done (mock vision) | `feature/phase-8-advanced-modes` → develop |
 | P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ✅ Done | `feature/phase-9-courses` → develop |
-| P10 | 10 | Progress + analytics (incl. meeting analytics) | Ph 8 | ❌ Not started | — |
+| P10 | 10 | Progress + analytics: real activity tracking, streaks, level/XP, weekly series, daily feedback, achievements | Ph 8 | ✅ Done (real data; mock removed) | `feature/phase-10-progress` → develop |
 | P11–12 | 11 | QA / security / deployment | Ph 10 | ❌ Not started | — |
+| — | — | **Extra modules** (Talkpal gap): Flashcards (decks + SR review + AI gen), Explore (daily picks) | — | ✅ Done | `feature/flashcards-explore` → develop |
 
 Notes:
 - Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
-- `develop` integrates **P1–P9** (P1/P2 docs, P3–P9 features; Phase 2 profile merged as `0421ec5`);
-  integration gate green: typecheck + lint + 115 tests.
-- Next buildable work: **P10 Progress + analytics** (incl. meeting analytics) then **P11–12 QA/deploy**.
-  Real Teams/AVD capture + voice device selection remain a later phase.
+- `develop` integrates **P1–P10 + Flashcards/Explore** (P1/P2 docs, P3–P10 features; Phase 2 profile
+  merged as `0421ec5`); integration gate green: typecheck + lint + 157 tests.
+- Next buildable work: **P11–12 QA / security / deployment** (test coverage, security/privacy/permission
+  tests, Docker, CI/CD, monitoring, deploy). Real Teams/AVD capture + voice device selection + a distinct
+  server-side CALL activity remain later work.

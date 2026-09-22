@@ -16,7 +16,11 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 - ✅ P8 Advanced AI modes (characters, debate, photo w/ mock vision, scenarios) — done, integrated.
 - ✅ P9 Courses (catalog, modules, lessons, exercises, progress, AI learning path) — done, integrated.
 - ✅ P1/P2 docs — delivered (research from `/reference/` screenshots; architecture from codebase).
-- `develop` integrates P1–P9; gate green: 115 tests.
+- ✅ Extra modules from Talkpal gap analysis: Flashcards + Explore — done, integrated.
+- ✅ P10 Progress + analytics (ActivityEvent tracking, streaks/level/XP, weekly series, daily
+  feedback, achievements) — done; dashboard now uses real data, `mock/dashboard.ts` removed.
+- `develop` integrates P1–P10 + Flashcards/Explore; gate green: 157 tests.
+- Next: P11–12 QA / security / deployment.
 
 ## Gate (must all exit 0, re-run independently)
 `npm run typecheck` · `npm run lint` · `npm run test`
@@ -30,6 +34,8 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 | feature/phase-7b-meeting-intelligence (fa554c4) | P7B | ✅ typecheck+lint+60 tests | ✅ develop = fa554c4 |
 | feature/phase-8-advanced-modes | P8 | ✅ typecheck+lint+94 tests | ✅ merged into develop |
 | feature/phase-9-courses (5413a48) + P1/P2 docs | P9,P1,P2 | ✅ typecheck+lint+115 tests | ✅ merged into develop |
+| feature/flashcards-explore (a46ed60) | Flashcards, Explore | ✅ typecheck+lint+135 tests | ✅ develop = a46ed60 |
+| feature/phase-10-progress (9702be3) | P10 | ✅ typecheck+lint+157 tests | ✅ develop |
 
 ## Open coordination notes
 - A background agent owns worktree `.claude/worktrees/phase-3` on `feature/phase-4-5-modes`; it
