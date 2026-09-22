@@ -15,3 +15,4 @@ export * from './photo.js';
 export * from './course.js';
 export * from './flashcard.js';
 export * from './explore.js';
+export * from './progress.js';

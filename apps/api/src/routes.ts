@@ -11,6 +11,7 @@ import { photoRouter } from './modules/photo/photo.routes.js';
 import { courseRouter } from './modules/course/course.routes.js';
 import { flashcardRouter } from './modules/flashcard/flashcard.routes.js';
 import { exploreRouter } from './modules/explore/explore.routes.js';
+import { progressRouter } from './modules/progress/progress.routes.js';
 
 export const apiRouter = Router();
 
@@ -30,3 +31,4 @@ apiRouter.use('/photos', photoRouter);
 apiRouter.use('/courses', courseRouter);
 apiRouter.use('/flashcards', flashcardRouter);
 apiRouter.use('/explore', exploreRouter);
+apiRouter.use('/progress', progressRouter);

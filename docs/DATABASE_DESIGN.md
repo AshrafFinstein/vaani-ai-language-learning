@@ -58,6 +58,8 @@ rows. `Conversation.character` is `SetNull` on character delete; `PracticeSessio
 | `MeetingAnalysisStatus` | PENDING, PROCESSING, COMPLETED, FAILED | P7B |
 | `ActionItemStatus` | OPEN, IN_PROGRESS, DONE, BLOCKED | P7B |
 | `ActionItemPriority` | LOW, MEDIUM, HIGH | P7B |
+| `FlashcardResult` | AGAIN, GOOD, EASY | Flashcards |
+| `ActivityKind` | CHAT, ROLEPLAY, CALL, DIALOGUE, WORD, SENTENCE, FLASHCARD, COURSE, DEBATE, PHOTO, CHARACTER, SCENARIO, MEETING | P10 |
 
 ---
 
@@ -165,12 +167,28 @@ cascade), `role`, `content` (Text), `createdAt`; indexed `[photoSessionId, creat
 
 ---
 
+### ActivityEvent (P10)
+A lightweight, persisted record that a learning activity completed. `userId` (FK cascade),
+`kind` (ActivityKind), `minutes` (Int, estimated duration credited), `xp` (Int), `createdAt`.
+Indexed on `[userId, createdAt]`. Feature services append one at each activity's natural
+completion point (message sent, card reviewed, lesson completed, meeting analyzed, …) via
+`apps/api/src/lib/activity.ts` (fixed deterministic minutes/xp per kind). The Progress module
+aggregates these into totals, a streak, level/XP, and the trailing-7-day weekly series.
+
+### Achievement / UserAchievement (P10)
+`Achievement`: seeded definition — `code` (unique slug matched by unlock logic), `title`,
+`description` (Text), `icon`, `sortOrder`, `createdAt`. Seed loads 8 achievements.
+`UserAchievement`: join row — `userId` (FK cascade), `achievementId` (FK cascade),
+`unlockedAt`. `@@unique([userId, achievementId])`, indexed on `userId`. Unlock predicates
+live in the progress service (they depend on computed progress); the DB holds display
+metadata + unlock timestamps.
+
+---
+
 ## Models NOT yet in the schema (planned)
 
 Per `IMPLEMENTATION_PLAN.md`, these are introduced when their phase begins:
-- **P9 Courses:** `Course`, `CourseModule`, `Lesson`, `Exercise`, `Vocabulary`, `UserVocabulary`,
-  `GrammarTopic`.
-- **P10 Progress:** `Progress`, `Achievement`.
+- **P9 Courses:** `Vocabulary`, `UserVocabulary`, `GrammarTopic` (deferred; not yet needed).
 - **Optional:** `Subscription`, `Usage`.
 
 ## Related docs

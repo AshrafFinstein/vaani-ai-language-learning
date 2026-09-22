@@ -13,6 +13,7 @@ import type { ChatOptions } from '@vaani/ai';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 type DeckRow = {
   id: string;
@@ -235,6 +236,7 @@ export const flashcardService = {
 
     // Record the practice activity for future progress analytics.
     await prisma.practiceSession.create({ data: { userId, kind: 'WORD' } });
+    await recordActivity(userId, 'FLASHCARD', now);
 
     return {
       flashcardId,

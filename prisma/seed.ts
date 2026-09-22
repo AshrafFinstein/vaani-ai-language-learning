@@ -414,6 +414,33 @@ async function seedCourses() {
   console.log(`Seeded ${COURSES.length} courses.`);
 }
 
+/**
+ * Achievement definitions (Phase 10). `code` must match the unlock logic in
+ * apps/api/src/modules/progress/achievements.ts. Unlock predicates live in the API
+ * (they depend on computed progress); the DB holds only the display metadata.
+ */
+const ACHIEVEMENTS = [
+  { code: 'first_conversation', title: 'First Words', description: 'Complete your first AI conversation.', icon: '💬', sortOrder: 1 },
+  { code: 'streak_3', title: 'Getting Consistent', description: 'Practice on 3 days in a row.', icon: '🔥', sortOrder: 2 },
+  { code: 'streak_7', title: 'Week Warrior', description: 'Practice on 7 days in a row.', icon: '⚡', sortOrder: 3 },
+  { code: 'flashcards_50', title: 'Vocabulary Builder', description: 'Review 50 flashcards.', icon: '🃏', sortOrder: 4 },
+  { code: 'course_complete', title: 'Course Graduate', description: 'Complete a full course.', icon: '🎓', sortOrder: 5 },
+  { code: 'debater', title: 'Silver Tongue', description: 'Take part in a debate.', icon: '⚖️', sortOrder: 6 },
+  { code: 'meeting_analyst', title: 'Meeting Analyst', description: 'Analyze your first meeting.', icon: '📝', sortOrder: 7 },
+  { code: 'hour_learner', title: 'Hour of Power', description: 'Accumulate 60 minutes of learning.', icon: '⏱️', sortOrder: 8 },
+];
+
+async function seedAchievements() {
+  for (const a of ACHIEVEMENTS) {
+    await prisma.achievement.upsert({
+      where: { code: a.code },
+      update: { title: a.title, description: a.description, icon: a.icon, sortOrder: a.sortOrder },
+      create: a,
+    });
+  }
+  console.log(`Seeded ${ACHIEVEMENTS.length} achievements.`);
+}
+
 async function main() {
   for (const lang of LANGUAGES) {
     await prisma.language.upsert({
@@ -445,6 +472,7 @@ async function main() {
 
   await seedCourses();
   await seedFlashcardDecks();
+  await seedAchievements();
 }
 
 main()

@@ -1,11 +1,13 @@
 import {
   AIFeedbackSchema,
+  DailyFeedbackDTO,
   DebateFeedbackSchema,
   ExerciseResultSchema,
   GeneratedFlashcardDeckSchema,
   LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
+  type DailyFeedbackDTO as DailyFeedback,
   type DebateFeedback,
   type ExerciseResult,
   type GeneratedFlashcardDeck,
@@ -19,6 +21,7 @@ import type {
   ChatOptions,
   ChatResult,
   ImageDescriptionResult,
+  ProgressSnapshot,
 } from './types.js';
 import {
   buildDebateFeedbackPrompt,
@@ -26,6 +29,7 @@ import {
   buildFeedbackPrompt,
   buildFlashcardPrompt,
   buildLearningPathPrompt,
+  buildProgressSummaryPrompt,
   buildSentenceEvalPrompt,
   buildSystemPrompt,
 } from './prompt.js';
@@ -278,6 +282,28 @@ export class OpenAIProvider implements AIProvider {
         );
       }
       return GeneratedFlashcardDeckSchema.parse(obj);
+    });
+  }
+
+  async summarizeProgress(
+    snapshot: ProgressSnapshot,
+    options?: ChatOptions,
+  ): Promise<DailyFeedback> {
+    const res = await this.call({
+      messages: [
+        { role: 'system', content: buildProgressSummaryPrompt(snapshot, options) },
+        { role: 'user', content: 'Write my daily feedback as JSON now.' },
+      ],
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+    });
+    const data = (await res.json()) as OpenAIChoiceMessage;
+    return parseJson(data.choices?.[0]?.message?.content ?? '{}', (obj) => {
+      if (typeof obj.summary !== 'string') obj.summary = 'Here is a summary of your recent progress.';
+      if (!Array.isArray(obj.highlights)) obj.highlights = [];
+      if (!Array.isArray(obj.suggestions)) obj.suggestions = [];
+      if (typeof obj.hasActivity !== 'boolean') obj.hasActivity = snapshot.totalSessions > 0;
+      return DailyFeedbackDTO.parse(obj);
     });
   }
 }

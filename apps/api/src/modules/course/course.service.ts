@@ -15,6 +15,7 @@ import type { ChatOptions } from '@vaani/ai';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 type ExerciseRow = Prisma.ExerciseGetPayload<object>;
 
@@ -209,6 +210,7 @@ export const courseService = {
     });
     // Record the practice activity for future progress analytics.
     await prisma.practiceSession.create({ data: { userId, kind: 'CHAT' } });
+    await recordActivity(userId, 'COURSE');
 
     const progress = await this.getProgress(userId, course.slug);
     if (progress.totalLessons > 0 && progress.completedLessons >= progress.totalLessons) {

@@ -142,6 +142,25 @@ enum FlashcardResult {
   EASY
 }
 
+// ── Progress + Analytics (Phase 10) ──────────────────────────────────────────
+/// A category of learning activity recorded when a feature completes. Feeds the
+/// Progress dashboard aggregation (learning minutes, sessions-by-type, weekly series).
+enum ActivityKind {
+  CHAT
+  ROLEPLAY
+  CALL
+  DIALOGUE
+  WORD
+  SENTENCE
+  FLASHCARD
+  COURSE
+  DEBATE
+  PHOTO
+  CHARACTER
+  SCENARIO
+  MEETING
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -165,6 +184,8 @@ model User {
   lessonProgress    LessonProgress[]
   flashcardDecks    FlashcardDeck[]
   flashcardReviews  FlashcardReview[]
+  activityEvents    ActivityEvent[]
+  achievements      UserAchievement[]
 
   @@index([email])
 }
@@ -683,4 +704,51 @@ model FlashcardReview {
 
   @@unique([userId, flashcardId])
   @@index([userId, dueAt])
+}
+
+// ── Progress + Analytics (Phase 10) ──────────────────────────────────────────
+
+/// A lightweight, persisted record that a learning activity completed. Feature
+/// services append one of these at the natural completion point of an activity
+/// (a message sent, a card reviewed, a lesson completed, a meeting analyzed, …).
+/// The Progress module aggregates these into totals, a streak, and a weekly series.
+/// `minutes` is an estimated duration credited to the activity; `xp` is experience
+/// awarded. Both are small fixed amounts per activity kind (deterministic).
+model ActivityEvent {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      ActivityKind
+  minutes   Int          @default(0)
+  xp        Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// A seeded achievement definition (original Vaani AI content). Unlock logic lives in
+/// the progress service; `code` is a stable slug the service checks against.
+model Achievement {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  description String   @db.Text
+  icon        String   @default("🏆")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  users UserAchievement[]
+}
+
+/// Join row recording that a learner unlocked an achievement, and when.
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
 }

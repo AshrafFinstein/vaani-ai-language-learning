@@ -4,7 +4,7 @@ import type {
   LearningPathCatalogItem,
   RoleplayScenario,
 } from '@vaani/types';
-import type { ChatOptions } from './types.js';
+import type { ChatOptions, ProgressSnapshot } from './types.js';
 
 const LEVEL_GUIDANCE: Record<string, string> = {
   BEGINNER:
@@ -298,6 +298,29 @@ export function buildSentenceEvalPrompt(prompt: string, options?: ChatOptions): 
     `  "grammar_score": number,      // 0-100`,
     `  "naturalness_score": number,  // 0-100`,
     `  "overall_score": number       // 0-100`,
+    `}`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Builds the daily-feedback (progress summary) prompt from an aggregated snapshot. */
+export function buildProgressSummaryPrompt(
+  snapshot: ProgressSnapshot,
+  options?: ChatOptions,
+): string {
+  const language = options?.languageName ?? snapshot.languageName ?? 'the target language';
+  return [
+    `You are an encouraging ${language} learning coach writing a short daily-feedback note.`,
+    `Here is the learner's recent activity (already aggregated):`,
+    JSON.stringify(snapshot),
+    `Write brief, motivating, specific feedback. Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "summary": string,          // one short encouraging paragraph`,
+    `  "highlights": string[],     // 0-4 concrete things that went well`,
+    `  "suggestions": string[],    // 1-3 concrete next steps`,
+    `  "hasActivity": boolean      // false only if there was no activity at all`,
     `}`,
     `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
   ]

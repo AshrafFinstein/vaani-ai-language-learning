@@ -77,7 +77,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Progress',
     items: [
-      { label: 'Statistics', to: '/app/progress', icon: BarChart3 },
+      { label: 'Statistics', to: '/app/progress', icon: BarChart3, ready: true },
       { label: 'History', to: '/app/history', icon: History },
       { label: 'Achievements', to: '/app/achievements', icon: Trophy },
     ],

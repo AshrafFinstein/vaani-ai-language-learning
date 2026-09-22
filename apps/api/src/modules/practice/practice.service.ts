@@ -1,6 +1,7 @@
 import type { SentenceEvaluation, SubmitSentenceInput } from '@vaani/types';
 import { prisma } from '../../prisma.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 export const practiceService = {
   /** Evaluates a single learner sentence and records a practice session. */
@@ -20,6 +21,7 @@ export const practiceService = {
     });
 
     await prisma.practiceSession.create({ data: { userId, kind: 'SENTENCE' } });
+    await recordActivity(userId, 'SENTENCE');
     return evaluation;
   },
 };

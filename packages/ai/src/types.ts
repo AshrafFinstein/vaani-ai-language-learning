@@ -1,5 +1,6 @@
 import type {
   AIFeedback,
+  DailyFeedbackDTO,
   DebateFeedback,
   ExerciseResult,
   GeneratedFlashcardDeck,
@@ -34,6 +35,26 @@ export interface ChatOptions {
 
 export interface ChatResult {
   reply: string;
+}
+
+/**
+ * A compact snapshot of a learner's recent activity, handed to the AI so it can
+ * produce a short daily-feedback summary (Progress mode). All fields are already
+ * aggregated by the caller — the provider does NOT touch the database.
+ */
+export interface ProgressSnapshot {
+  minutesToday: number;
+  weeklyMinutes: number;
+  currentStreak: number;
+  totalSessions: number;
+  flashcardsReviewed: number;
+  conversationCount: number;
+  courseCompletionPercent: number;
+  dailyGoalMinutes: number;
+  /** Human-readable language name for the summary, e.g. "Spanish". */
+  languageName?: string;
+  /** The activity kinds the learner used recently, most-frequent first. */
+  topActivities: string[];
 }
 
 /** Result of a (mock) vision description for Photo mode. */
@@ -104,6 +125,12 @@ export interface AIProvider {
     topic: string,
     options?: ChatOptions & { count?: number },
   ): Promise<GeneratedFlashcardDeck>;
+  /**
+   * Produces a short, encouraging daily-feedback summary from an already-aggregated
+   * activity snapshot (Progress mode) — always schema-validated. The Mock is fully
+   * deterministic (same snapshot → same summary) and makes NO network call.
+   */
+  summarizeProgress(snapshot: ProgressSnapshot, options?: ChatOptions): Promise<DailyFeedbackDTO>;
 }
 
 export interface SpeechToTextResult {

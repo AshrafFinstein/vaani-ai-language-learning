@@ -9,10 +9,12 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { SidebarNav } from './SidebarNav';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { UserMenu } from './UserMenu';
-import { mockDashboard } from '@/mock/dashboard';
+import { useProgress } from '@/features/progress/useProgress';
 
 export function TopBar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { data: progress } = useProgress();
+  const streakDays = progress?.currentStreak ?? 0;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:px-6">
@@ -54,7 +56,7 @@ export function TopBar() {
       <div className="flex items-center gap-1.5">
         <Badge variant="secondary" className="gap-1 py-1">
           <Flame className="h-3.5 w-3.5 text-orange-500" />
-          <span className="tabular-nums">{mockDashboard.streakDays}</span>
+          <span className="tabular-nums">{streakDays}</span>
         </Badge>
         <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
           <Bell className="h-5 w-5" />

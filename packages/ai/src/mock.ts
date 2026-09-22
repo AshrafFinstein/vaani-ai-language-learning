@@ -1,11 +1,13 @@
 import {
   AIFeedbackSchema,
+  DailyFeedbackDTO,
   DebateFeedbackSchema,
   ExerciseResultSchema,
   GeneratedFlashcardDeckSchema,
   LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
+  type DailyFeedbackDTO as DailyFeedback,
   type DebateFeedback,
   type ExerciseResult,
   type GeneratedFlashcardDeck,
@@ -19,6 +21,7 @@ import type {
   ChatOptions,
   ChatResult,
   ImageDescriptionResult,
+  ProgressSnapshot,
   SpeechToTextProvider,
   SpeechToTextResult,
   TextToSpeechProvider,
@@ -320,6 +323,73 @@ export class MockAIProvider implements AIProvider {
       title: `${cleanTopic} flashcards`,
       description: `A ${count}-card ${language} deck about ${cleanTopic}.`,
       cards,
+    });
+  }
+
+  /**
+   * Deterministic daily-feedback summary. NO network call: the copy is assembled from
+   * the aggregated snapshot with simple, stable rules, so the same snapshot always
+   * yields the same feedback (important for reproducible tests).
+   */
+  async summarizeProgress(
+    snapshot: ProgressSnapshot,
+    _options?: ChatOptions,
+  ): Promise<DailyFeedback> {
+    const language = snapshot.languageName ?? 'your target language';
+    const hasActivity = snapshot.totalSessions > 0 || snapshot.weeklyMinutes > 0;
+
+    if (!hasActivity) {
+      return DailyFeedbackDTO.parse({
+        summary: `Welcome! You haven't practiced ${language} yet. Start with a quick chat or a few flashcards to begin building your streak.`,
+        highlights: [],
+        suggestions: [
+          'Try a short AI chat to warm up',
+          'Review a flashcard deck to learn new words',
+          `Set aside ${snapshot.dailyGoalMinutes} minutes today to hit your goal`,
+        ],
+        hasActivity: false,
+      });
+    }
+
+    const goalMet = snapshot.minutesToday >= snapshot.dailyGoalMinutes && snapshot.dailyGoalMinutes > 0;
+    const highlights: string[] = [];
+    if (snapshot.currentStreak > 0) {
+      highlights.push(`You're on a ${snapshot.currentStreak}-day streak — consistency pays off.`);
+    }
+    if (snapshot.weeklyMinutes > 0) {
+      highlights.push(`You practiced ${snapshot.weeklyMinutes} minutes this week.`);
+    }
+    if (snapshot.flashcardsReviewed > 0) {
+      highlights.push(`You reviewed ${snapshot.flashcardsReviewed} flashcards.`);
+    }
+    if (snapshot.conversationCount > 0) {
+      highlights.push(`You've held ${snapshot.conversationCount} AI conversations.`);
+    }
+
+    const suggestions: string[] = [];
+    if (!goalMet) {
+      const remaining = Math.max(0, snapshot.dailyGoalMinutes - snapshot.minutesToday);
+      suggestions.push(`Just ${remaining} more minutes today to reach your daily goal.`);
+    }
+    if (snapshot.flashcardsReviewed === 0) {
+      suggestions.push('Add a flashcard review to reinforce vocabulary.');
+    }
+    if (snapshot.courseCompletionPercent < 100) {
+      suggestions.push('Continue your enrolled course to build structured skills.');
+    }
+    if (suggestions.length === 0) {
+      suggestions.push('Great pace — try a harder mode like Debate to stretch yourself.');
+    }
+
+    const summary = goalMet
+      ? `Fantastic work — you hit your daily goal for ${language} today! Keep the momentum going.`
+      : `Nice progress on your ${language} practice. You're building good habits — a little more today keeps your streak alive.`;
+
+    return DailyFeedbackDTO.parse({
+      summary,
+      highlights: highlights.slice(0, 4),
+      suggestions: suggestions.slice(0, 3),
+      hasActivity: true,
     });
   }
 }

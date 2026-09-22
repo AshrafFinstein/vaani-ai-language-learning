@@ -24,6 +24,7 @@ import {
 } from '@vaani/meeting';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
+import { recordActivity } from '../../lib/activity.js';
 
 // ── Mappers ─────────────────────────────────────────────────────────────────
 
@@ -467,6 +468,8 @@ async function runAnalysis(meeting: MeetingWithRelations): Promise<void> {
         data: { analysisStatus: 'COMPLETED' },
       });
     });
+    // Record the meeting activity for progress analytics (best-effort, post-commit).
+    await recordActivity(meeting.userId, 'MEETING');
   } catch (err) {
     await prisma.meeting.update({
       where: { id: meeting.id },
