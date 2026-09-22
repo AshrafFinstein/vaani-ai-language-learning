@@ -12,16 +12,14 @@ export interface ChatOptions {
   level?: LearningLevel;
   /** Target learning language code, e.g. "en", "es". */
   languageCode?: string;
+  /** Human-readable language name for prompts, e.g. "Spanish". */
+  languageName?: string;
   /** Optional conversation topic/scenario hint. */
   topic?: string;
-  /** When true, ask the provider to return structured {@link AIFeedback}. */
-  structured?: boolean;
 }
 
 export interface ChatResult {
   reply: string;
-  /** Present only when structured feedback was requested and validated. */
-  feedback?: AIFeedback;
 }
 
 /**
@@ -30,9 +28,12 @@ export interface ChatResult {
  */
 export interface AIProvider {
   readonly name: string;
+  /** Single-shot reply (non-streaming). */
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult>;
-  /** Async iterator of token/though deltas for streaming UIs. */
+  /** Async iterator of text deltas for streaming UIs. */
   streamChat(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<string>;
+  /** Structured tutor feedback for a conversation — always schema-validated. */
+  analyze(messages: ChatMessage[], options?: ChatOptions): Promise<AIFeedback>;
 }
 
 export interface SpeechToTextResult {

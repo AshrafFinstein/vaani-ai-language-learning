@@ -9,11 +9,11 @@ import RegisterPage from '@/pages/public/Register';
 import ForgotPasswordPage from '@/pages/public/ForgotPassword';
 import MarketingPlaceholder from '@/pages/public/MarketingPlaceholder';
 import DashboardPage from '@/pages/app/Dashboard';
+import ChatPage from '@/pages/app/Chat';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
 const COMING_SOON = [
-  'chat',
   'roleplay',
   'call',
   'dialogue',
@@ -63,6 +63,8 @@ export default function App() {
       >
         <Route index element={<Navigate to="/app/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="chat/:id" element={<ChatPage />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}

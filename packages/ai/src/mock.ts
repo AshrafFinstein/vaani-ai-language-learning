@@ -1,4 +1,4 @@
-import { AIFeedbackSchema } from '@vaani/types';
+import { AIFeedbackSchema, type AIFeedback } from '@vaani/types';
 import type {
   AIProvider,
   ChatMessage,
@@ -17,35 +17,67 @@ import type {
 export class MockAIProvider implements AIProvider {
   readonly name = 'mock';
 
-  private buildReply(messages: ChatMessage[]): string {
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    const text = lastUser?.content.trim() ?? '';
-    if (!text) return 'Hello! What would you like to practice today?';
-    return `That's a great point about "${text.slice(0, 60)}". Can you tell me a little more?`;
+  private lastUserMessage(messages: ChatMessage[]): string {
+    return [...messages].reverse().find((m) => m.role === 'user')?.content.trim() ?? '';
+  }
+
+  private buildReply(messages: ChatMessage[], options?: ChatOptions): string {
+    const text = this.lastUserMessage(messages);
+    const isFirst = messages.filter((m) => m.role === 'user').length <= 1;
+    if (!text || isFirst) {
+      const topic = options?.topic ? ` about ${options.topic.toLowerCase()}` : '';
+      return `Hi! I'm Vaani, your practice partner. Let's chat${topic}. What would you like to talk about?`;
+    }
+    return `That's interesting — "${text.slice(0, 80)}". Tell me a bit more, and why do you feel that way?`;
   }
 
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
-    const reply = this.buildReply(messages);
-    if (!options?.structured) return { reply };
-
-    // Validate through the real schema so the mock exercises the same trust boundary.
-    const feedback = AIFeedbackSchema.parse({
-      reply,
-      corrections: [],
-      vocabulary: [],
-      pronunciation: [],
-      grammar_score: 82,
-      fluency_score: 78,
-      overall_score: 80,
-    });
-    return { reply, feedback };
+    return { reply: this.buildReply(messages, options) };
   }
 
-  async *streamChat(messages: ChatMessage[]): AsyncIterable<string> {
-    const reply = this.buildReply(messages);
-    for (const word of reply.split(' ')) {
-      yield `${word} `;
+  async *streamChat(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<string> {
+    const reply = this.buildReply(messages, options);
+    // Emit word-by-word so the client can render a realistic streaming effect.
+    const words = reply.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      yield i === 0 ? words[i]! : ` ${words[i]!}`;
     }
+  }
+
+  async analyze(messages: ChatMessage[], _options?: ChatOptions): Promise<AIFeedback> {
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const last = userMessages.at(-1)?.content.trim() ?? '';
+
+    // A tiny heuristic so the mock produces a believable correction sometimes.
+    const firstChar = last[0] ?? '';
+    const corrections =
+      last && firstChar === firstChar.toLowerCase() && /[a-z]/.test(firstChar)
+        ? [
+            {
+              original: last,
+              corrected: last.charAt(0).toUpperCase() + last.slice(1),
+              explanation: 'Start sentences with a capital letter.',
+            },
+          ]
+        : [];
+
+    return AIFeedbackSchema.parse({
+      reply: userMessages.length
+        ? 'Nice work keeping the conversation going! Here are a few things to polish.'
+        : 'Say a few things first and I can give you feedback.',
+      corrections,
+      vocabulary: [
+        {
+          term: 'for instance',
+          meaning: 'used to give an example',
+          example: 'I like fruit, for instance apples.',
+        },
+      ],
+      pronunciation: [],
+      grammar_score: 78,
+      fluency_score: 74,
+      overall_score: 76,
+    });
   }
 }
 

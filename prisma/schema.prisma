@@ -32,6 +32,35 @@ enum ThemePreference {
   SYSTEM
 }
 
+enum ConversationTopic {
+  DAILY
+  TRAVEL
+  JOB_INTERVIEW
+  WORKPLACE
+  SHOPPING
+  RESTAURANT
+  FRIENDS
+  TECHNOLOGY
+  FREE
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+// Practice categories; only CHAT is produced in Phase 3. Others are added with their features.
+enum PracticeKind {
+  CHAT
+  ROLEPLAY
+  CALL
+  DIALOGUE
+  SENTENCE
+  WORD
+  PHOTO
+  DEBATE
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -42,9 +71,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile       Profile?
-  sessions      Session[]
-  userLanguages UserLanguage[]
+  profile          Profile?
+  sessions         Session[]
+  userLanguages    UserLanguage[]
+  conversations    Conversation[]
+  practiceSessions PracticeSession[]
 
   @@index([email])
 }
@@ -78,6 +109,7 @@ model Language {
 
   profilesLearning Profile[]      @relation("ProfileLearningLanguage")
   userLanguages    UserLanguage[]
+  conversations    Conversation[]
 }
 
 /// Languages a user is actively learning (a user may learn several over time).
@@ -110,4 +142,52 @@ model Session {
   createdAt        DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// An AI Chat conversation (Phase 3). Groups an ordered list of messages.
+model Conversation {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  language     Language          @relation(fields: [languageCode], references: [code])
+  topic        ConversationTopic @default(FREE)
+  level        LearningLevel     @default(BEGINNER)
+  title        String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  messages         ConversationMessage[]
+  practiceSessions PracticeSession[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model ConversationMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// Records that a practice activity happened (Phase 3 creates these for chat).
+/// Progress/analytics (Phase 8) aggregates them.
+model PracticeSession {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind            PracticeKind
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  startedAt       DateTime      @default(now())
+  endedAt         DateTime?
+  durationSeconds Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([userId, createdAt])
 }
