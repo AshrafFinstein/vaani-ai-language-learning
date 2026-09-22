@@ -9,6 +9,7 @@ import RegisterPage from '@/pages/public/Register';
 import ForgotPasswordPage from '@/pages/public/ForgotPassword';
 import MarketingPlaceholder from '@/pages/public/MarketingPlaceholder';
 import DashboardPage from '@/pages/app/Dashboard';
+import ProfilePage from '@/pages/app/Profile';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
@@ -29,8 +30,6 @@ const COMING_SOON = [
   'progress',
   'history',
   'achievements',
-  'profile',
-  'settings',
   'subscription',
   'help',
 ];
@@ -63,6 +62,8 @@ export default function App() {
       >
         <Route index element={<Navigate to="/app/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="settings" element={<Navigate to="/app/profile" replace />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}

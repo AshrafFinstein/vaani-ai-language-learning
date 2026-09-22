@@ -22,6 +22,8 @@ describe('DashboardPage', () => {
         role: 'USER',
         learningLanguageCode: 'es',
         level: 'INTERMEDIATE',
+        dailyGoalMinutes: 30,
+        theme: 'SYSTEM',
         createdAt: new Date().toISOString(),
       },
       isHydrating: false,
