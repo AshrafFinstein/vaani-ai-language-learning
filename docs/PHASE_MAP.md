@@ -15,7 +15,7 @@ _Last updated: 2026-09-22._
 | P5 | 5 | Roleplay: scenarios, characters, feedback, session history | Ph 4 | ✅ Done | `feature/phase-4-5-modes` ec53c5d (pushed) |
 | P6 | 6 | Learning modes: word/sentence/dialogue/vocab/grammar/speaking | Ph 4 | ✅ Done (core) | `feature/phase-4-5-modes` ec53c5d |
 | P7A | 7 | Voice: mic/device select, STT/TTS, voice conversation, recording controls | Ph 5 | 🔨 Scaffolded (Web Speech hooks, Call page) | `feature/phase-4-5-modes` |
-| P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ❌ Not started | — |
+| P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ✅ Done (mock; real capture deferred) | `feature/phase-7b-meeting-intelligence` fa554c4 → develop |
 | P8 | 8 | Advanced AI modes: photo, debate, characters | Ph 6 | ❌ Not started | — |
 | P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ❌ Not started | — |
 | P10 | 10 | Progress + analytics (incl. meeting analytics) | Ph 8 | ❌ Not started | — |
@@ -23,6 +23,7 @@ _Last updated: 2026-09-22._
 
 Notes:
 - Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
-- `develop` is the integration branch, currently at `ec53c5d` (integrates P3–P6 + P7A scaffold).
-- Next buildable work: **P7B Meeting Intelligence** (schema + schedule UI + mock analysis; real
-  Teams/AVD capture deferred pending environment validation) and completing **P1/P2 docs**.
+- `develop` is the integration branch, currently at `fa554c4` (integrates P3–P7A + P7B Meeting
+  Intelligence; integration gate green: typecheck + lint + 60 tests).
+- Next buildable work: **P8 Advanced AI modes** (photo, debate, characters) and completing
+  **P1/P2 docs** (needs `/reference/` assets). Real Teams/AVD capture remains a later phase.
