@@ -4,10 +4,11 @@
 P7
 
 ## Status
-IN_PROGRESS
+COMPLETE (integrated into develop; one deferred gap — see Blockers)
 
 ## Completed
-- P7A voice scaffold: Web Speech STT/TTS hooks, Call page, device-aware
+- P7A voice: Web Speech STT/TTS hooks (`useSpeechRecognition`, `useSpeechSynthesis`),
+  `lang.ts`, and a Call page wiring a live voice conversation with permission handling.
 - P7B Meeting Intelligence (mock/prototype):
   - `@vaani/types` meeting contracts (Zod) — reconciled with Prisma models
   - `packages/meeting` domain package: `MeetingAnalysisProvider` interface +
@@ -29,12 +30,13 @@ IN_PROGRESS
   - `docs/MEETING_ARCHITECTURE.md` (module, consent/privacy, real-capture deferred).
 
 ## Current Task
-P7B complete pending Coordinator gate re-run.
+Phase 7 marked complete. Integrated into develop (fa554c4); gate green (60 tests).
 
 ## Blockers
-None recorded.
+Deferred gap (not blocking): P7A mic/speaker **device selection** is not implemented —
+the Web Speech API binds the default OS device; a real device picker needs a
+`getUserMedia`-based STT pipeline, which pairs with the deferred real-capture work.
 
 ## Next Step
-Coordinator: re-run the gate (typecheck/lint/test) and integrate into `develop`.
-Real Teams/AVD capture + STT/diarization deferred to a later phase (behind the
-`@vaani/meeting` provider abstraction).
+Real Teams/AVD capture + STT/diarization + audio device selection deferred to a later
+phase, behind the `@vaani/meeting` / voice provider abstractions.

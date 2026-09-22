@@ -14,7 +14,7 @@ _Last updated: 2026-09-22._
 | P4 | 4 | AI Chat: streaming, history, persistence, provider abstraction, sessions | Ph 3 | ✅ Done | `feature/phase-3-ai-chat` f40f72f (pushed) |
 | P5 | 5 | Roleplay: scenarios, characters, feedback, session history | Ph 4 | ✅ Done | `feature/phase-4-5-modes` ec53c5d (pushed) |
 | P6 | 6 | Learning modes: word/sentence/dialogue/vocab/grammar/speaking | Ph 4 | ✅ Done (core) | `feature/phase-4-5-modes` ec53c5d |
-| P7A | 7 | Voice: mic/device select, STT/TTS, voice conversation, recording controls | Ph 5 | 🔨 Scaffolded (Web Speech hooks, Call page) | `feature/phase-4-5-modes` |
+| P7A | 7 | Voice: STT/TTS, voice conversation, recording controls (mic/speaker device selection deferred) | Ph 5 | ✅ Done (device picker deferred to real-capture phase) | `feature/phase-4-5-modes` |
 | P7B | 7 | **Meeting Intelligence** (Teams/AVD): schedule, recording, transcription, participant/speaker detection, summary, decisions, action items, privacy | — (NEW) | ✅ Done (mock; real capture deferred) | `feature/phase-7b-meeting-intelligence` fa554c4 → develop |
 | P8 | 8 | Advanced AI modes: photo, debate, characters | Ph 6 | ❌ Not started | — |
 | P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ❌ Not started | — |

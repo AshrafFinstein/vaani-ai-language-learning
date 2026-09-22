@@ -10,8 +10,9 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 - ✅ P3 Foundation (auth, shell, dashboard, profile, nav) — done, `feature/phase-2-dashboard-profile`.
 - ✅ P4 AI Chat — done, `feature/phase-3-ai-chat` (f40f72f).
 - ✅ P5 Roleplay + P6 Learning modes (core) — done, `feature/phase-4-5-modes` (ec53c5d).
-- 🔨 P7A Voice — scaffolded (Web Speech hooks, Call page).
-- ✅ P7B Meeting Intelligence — done (mock; real capture deferred), integrated into develop.
+- ✅ P7 Voice + Meeting Intelligence — complete, integrated into develop.
+  - P7A Voice: STT/TTS + Call page voice conversation done (mic/speaker device picker deferred).
+  - P7B Meeting Intelligence: done (mock; real Teams/AVD capture deferred).
 - ⚠️ P1/P2 research + architecture docs — partial; `/reference/` assets missing.
 - `develop` integration branch at fa554c4 (integrates P3–P7B; gate green: 60 tests).
 
