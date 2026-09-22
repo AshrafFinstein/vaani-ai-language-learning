@@ -1,0 +1,7 @@
+node_modules
+dist
+build
+coverage
+.vite
+prisma/migrations
+**/*.gen.ts

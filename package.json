@@ -1,0 +1,49 @@
+{
+  "name": "vaani-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vaani AI — an original AI-powered language learning platform.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:web": "npm run dev --workspace @vaani/web",
+    "dev:api": "npm run dev --workspace @vaani/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run typecheck && npm run build --workspace @vaani/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "npm run test --workspace @vaani/api && npm run test --workspace @vaani/web",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio --schema prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.11.1",
+    "@types/node": "^20.14.10",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "eslint": "^9.11.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.1",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.3.3",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  }
+}

@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vaani-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vaani
+      POSTGRES_PASSWORD: vaani
+      POSTGRES_DB: vaani
+    # Host port 5433 to avoid clashing with a locally-installed PostgreSQL on 5432.
+    ports:
+      - '5433:5432'
+    volumes:
+      - vaani-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vaani -d vaani']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  vaani-pgdata:

@@ -1,0 +1,113 @@
+// Vaani AI — Prisma schema.
+// Phase 1 introduces only the models required for auth, users, and language selection.
+// Remaining domain models (Conversation, Course, Progress, …) are added in their phases
+// so migrations stay meaningful and tables aren't created before they're used.
+// See docs/IMPLEMENTATION_PLAN.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LearningLevel {
+  BEGINNER
+  ELEMENTARY
+  INTERMEDIATE
+  UPPER_INTERMEDIATE
+  ADVANCED
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile       Profile?
+  sessions      Session[]
+  userLanguages UserLanguage[]
+
+  @@index([email])
+}
+
+model Profile {
+  id                   String          @id @default(cuid())
+  userId               String          @unique
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Currently-selected learning language (nullable until onboarding completes).
+  learningLanguageCode String?
+  learningLanguage     Language?       @relation("ProfileLearningLanguage", fields: [learningLanguageCode], references: [code])
+  nativeLanguageCode   String?
+  level                LearningLevel   @default(BEGINNER)
+  dailyGoalMinutes     Int             @default(30)
+  theme                ThemePreference @default(SYSTEM)
+  timezone             String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([learningLanguageCode])
+}
+
+model Language {
+  code       String   @id // e.g. "en", "es", "ta"
+  name       String // English name
+  nativeName String // endonym
+  flagEmoji  String
+  rtl        Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  profilesLearning Profile[]      @relation("ProfileLearningLanguage")
+  userLanguages    UserLanguage[]
+}
+
+/// Languages a user is actively learning (a user may learn several over time).
+model UserLanguage {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  language     Language      @relation(fields: [languageCode], references: [code], onDelete: Cascade)
+  level        LearningLevel @default(BEGINNER)
+  isPrimary    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([userId, languageCode])
+  @@index([userId])
+}
+
+/// Persisted refresh sessions. The refresh token is stored hashed so it can be
+/// revoked (logout) and cannot be used if the database leaks.
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+}
