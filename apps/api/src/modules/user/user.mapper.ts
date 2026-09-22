@@ -14,6 +14,8 @@ export function toUserDTO(user: UserWithProfile): UserDTO {
     role: user.role,
     learningLanguageCode: user.profile?.learningLanguageCode ?? null,
     level: user.profile?.level ?? null,
+    dailyGoalMinutes: user.profile?.dailyGoalMinutes ?? 30,
+    theme: user.profile?.theme ?? 'SYSTEM',
     createdAt: user.createdAt.toISOString(),
   };
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LearningLevel } from './common.js';
+import { LearningLevel, ThemePreference } from './common.js';
 
 const passwordSchema = z
   .string()
@@ -36,6 +36,8 @@ export const UserDTO = z.object({
   role: z.enum(['USER', 'ADMIN']),
   learningLanguageCode: z.string().nullable(),
   level: LearningLevel.nullable(),
+  dailyGoalMinutes: z.number().int(),
+  theme: ThemePreference,
   createdAt: z.string(),
 });
 export type UserDTO = z.infer<typeof UserDTO>;

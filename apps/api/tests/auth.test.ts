@@ -134,7 +134,12 @@ describe('POST /api/auth/register', () => {
   it('creates an account and returns the user (201) with an auth cookie', async () => {
     const res = await request(app).post('/api/auth/register').send(validUser);
     expect(res.status).toBe(201);
-    expect(res.body.data.user).toMatchObject({ email: validUser.email, name: validUser.name });
+    expect(res.body.data.user).toMatchObject({
+      email: validUser.email,
+      name: validUser.name,
+      dailyGoalMinutes: 30,
+      theme: 'SYSTEM',
+    });
     expect(res.body.data.user.passwordHash).toBeUndefined();
     const setCookie = res.headers['set-cookie'] as unknown as string[] | undefined;
     expect(setCookie?.join(';') ?? '').toContain('vaani_access');

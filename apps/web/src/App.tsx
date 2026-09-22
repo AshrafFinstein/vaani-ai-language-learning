@@ -21,6 +21,7 @@ import MeetingDetailPage from '@/pages/app/MeetingDetail';
 import CharactersPage from '@/pages/app/Characters';
 import DebatePage from '@/pages/app/Debate';
 import PhotoPage from '@/pages/app/Photo';
+import ProfilePage from '@/pages/app/Profile';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
@@ -32,8 +33,6 @@ const COMING_SOON = [
   'progress',
   'history',
   'achievements',
-  'profile',
-  'settings',
   'subscription',
   'help',
 ];
@@ -84,6 +83,8 @@ export default function App() {
         <Route path="debate/:id" element={<DebatePage />} />
         <Route path="photo" element={<PhotoPage />} />
         <Route path="photo/:id" element={<PhotoPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="settings" element={<Navigate to="/app/profile" replace />} />
         {COMING_SOON.map((path) => (
           <Route key={path} path={path} element={<ComingSoonPage />} />
         ))}

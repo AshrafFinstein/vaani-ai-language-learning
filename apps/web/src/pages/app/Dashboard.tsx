@@ -42,7 +42,9 @@ export default function DashboardPage() {
   const { data: languages } = useLanguages();
   const language = languages?.find((l) => l.code === user?.learningLanguageCode);
   const firstName = user?.name?.split(' ')[0] ?? 'there';
-  const goalPct = Math.min(100, Math.round((d.minutesToday / d.dailyGoalMinutes) * 100));
+  // Daily-goal target is a real user setting; minutes-today stays mock until Phase 8.
+  const dailyGoalMinutes = user?.dailyGoalMinutes ?? d.dailyGoalMinutes;
+  const goalPct = Math.min(100, Math.round((d.minutesToday / dailyGoalMinutes) * 100));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -97,13 +99,13 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             <div className="flex items-end justify-between">
               <span className="text-3xl font-bold tabular-nums">{d.minutesToday}</span>
-              <span className="text-sm text-muted-foreground">/ {d.dailyGoalMinutes} min</span>
+              <span className="text-sm text-muted-foreground">/ {dailyGoalMinutes} min</span>
             </div>
             <Progress value={goalPct} />
             <p className="text-sm text-muted-foreground">
               {goalPct >= 100
                 ? 'Goal complete — amazing! 🎉'
-                : `${d.dailyGoalMinutes - d.minutesToday} minutes left today.`}
+                : `${dailyGoalMinutes - d.minutesToday} minutes left today.`}
             </p>
           </CardContent>
         </Card>

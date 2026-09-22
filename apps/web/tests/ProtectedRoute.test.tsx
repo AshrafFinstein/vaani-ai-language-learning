@@ -42,6 +42,8 @@ describe('ProtectedRoute', () => {
         role: 'USER',
         learningLanguageCode: null,
         level: null,
+        dailyGoalMinutes: 30,
+        theme: 'SYSTEM',
         createdAt: new Date().toISOString(),
       },
       isHydrating: false,
