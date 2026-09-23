@@ -4,16 +4,20 @@
 P1
 
 ## Status
-PARTIAL / BLOCKED
+DONE
 
 ## Completed
 - ARCHITECTURE.md, IMPLEMENTATION_PLAN.md exist
+- docs/REFERENCE_ANALYSIS.md (pattern analysis of reference screenshots, original wording)
+- docs/PRODUCT_FEATURES.md (feature catalogue mapped to phase + nav/routes)
+- docs/PAGE_MAP.md (every route/page from App.tsx + config/nav.ts)
+- docs/USER_FLOWS.md (key journeys)
 
 ## Current Task
-Backfill REFERENCE_ANALYSIS / PRODUCT_FEATURES / PAGE_MAP / USER_FLOWS
+None — P1 product-research docs delivered.
 
 ## Blockers
 None recorded.
 
 ## Next Step
-Obtain /reference/ assets (dashboard.png, progress.png, recording) then write research docs
+Coordinator to gate/integrate on branch chore/reference-and-docs.

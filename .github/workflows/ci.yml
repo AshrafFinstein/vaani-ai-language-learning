@@ -1,0 +1,92 @@
+name: CI
+
+# Runs the offline, deterministic gate on every push and PR. The default gate uses
+# the Mock AI/speech providers, so no network or API key is required.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    env:
+      # Test/build env — no secrets. Mirrors apps/api/tests/setup.ts defaults.
+      NODE_ENV: test
+      JWT_SECRET: ci-secret-at-least-16-chars-long
+      DATABASE_URL: postgresql://vaani:vaani@localhost:5432/vaani_test?schema=public
+      AI_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (offline gate — Mock providers)
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: E2E (Playwright, non-blocking)
+    # Kept OUT of the required gate: E2E needs browsers + a running stack. Runs only
+    # on manual dispatch or the nightly schedule, and never blocks a PR.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vaani
+          POSTGRES_PASSWORD: vaani
+          POSTGRES_DB: vaani
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vaani -d vaani"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: development
+      JWT_SECRET: ci-secret-at-least-16-chars-long
+      DATABASE_URL: postgresql://vaani:vaani@localhost:5433/vaani?schema=public
+      AI_PROVIDER: mock
+      E2E_BASE_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:deploy
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Start API + web
+        run: npm run dev &
+      - name: Wait for web
+        run: npx wait-on http://localhost:5173 --timeout 60000
+      - name: Run E2E
+        run: npm run e2e

@@ -1,0 +1,30 @@
+# Keep the Docker build context small and secret-free.
+**/node_modules
+**/dist
+**/build
+**/.turbo
+**/coverage
+**/.vitest
+
+# Secrets & local env — NEVER copy these into an image.
+.env
+.env.*
+!.env.example
+
+# VCS / editor / CI cruft
+.git
+.gitignore
+.github
+.vscode
+.idea
+**/*.log
+
+# Tests & E2E artifacts not needed at runtime
+**/playwright-report
+**/test-results
+**/.playwright
+
+# Agent/worktree scaffolding
+.claude
+agent-state
+docs

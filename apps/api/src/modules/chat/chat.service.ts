@@ -21,6 +21,7 @@ import {
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 type ConversationWithMessages = Prisma.ConversationGetPayload<{
   include: { messages: true; language: true; character: true };
@@ -201,6 +202,7 @@ export const chatService = {
         practiceSessions: { create: { userId, kind: input.mode } },
       },
     });
+    await recordActivity(userId, input.mode);
     return toConversationDTO(conversation);
   },
 
@@ -246,6 +248,7 @@ export const chatService = {
         practiceSessions: { create: { userId, kind: 'CHARACTER' } },
       },
     });
+    await recordActivity(userId, 'CHARACTER');
     return toConversationDTO(conversation);
   },
 

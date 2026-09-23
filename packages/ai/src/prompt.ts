@@ -1,5 +1,10 @@
-import type { CharacterDTO, DialogueScenario, RoleplayScenario } from '@vaani/types';
-import type { ChatOptions } from './types.js';
+import type {
+  CharacterDTO,
+  DialogueScenario,
+  LearningPathCatalogItem,
+  RoleplayScenario,
+} from '@vaani/types';
+import type { ChatOptions, ProgressSnapshot } from './types.js';
 
 const LEVEL_GUIDANCE: Record<string, string> = {
   BEGINNER:
@@ -185,6 +190,98 @@ export function buildPhotoPrompt(description: string, options?: ChatOptions): st
     .join('\n');
 }
 
+/**
+ * System prompt for grading one open-ended course exercise (translate / free-response).
+ * Instructs the model to return ONLY JSON matching the ExerciseResult schema; the output
+ * is still validated with Zod on return.
+ */
+export function buildExerciseEvalPrompt(
+  prompt: string,
+  expected: string,
+  options?: ChatOptions,
+): string {
+  const language = options?.languageName ?? 'the target language';
+  return [
+    `You are a ${language} tutor grading a learner's answer to a course exercise.`,
+    `Exercise prompt: "${prompt}"`,
+    `A reference/expected answer is: "${expected}".`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Judge whether the learner's answer is correct in meaning (accept reasonable variations).`,
+    `Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "isCorrect": boolean,          // true if the answer is essentially correct`,
+    `  "correctAnswer": string,       // the reference answer (or an improved model answer)`,
+    `  "feedback": string,            // 1-2 sentence encouraging explanation or tip`,
+    `  "score": number                // 0-100`,
+    `}`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * System prompt for generating a personalized learning path (Course mode). The model may
+ * ONLY recommend courses from the provided catalog (by slug) so paths are always actionable.
+ * Instructs the model to return ONLY JSON matching the LearningPath schema; output is still
+ * validated with Zod on return.
+ */
+export function buildLearningPathPrompt(
+  catalog: LearningPathCatalogItem[],
+  options?: ChatOptions & { goal?: string },
+): string {
+  const language = options?.languageName ?? 'the target language';
+  const goal = options?.goal ? `The learner's stated goal: "${options.goal}".` : '';
+  const list = catalog
+    .map((c) => `- slug: "${c.slug}", title: "${c.title}", level: ${c.level} — ${c.description}`)
+    .join('\n');
+  return [
+    `You are a ${language} learning advisor building a personalized course plan.`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    goal,
+    `Recommend an ordered path using ONLY these available courses (never invent a slug):`,
+    list || '(no courses available)',
+    `Order them from most to least appropriate for the learner, easiest first.`,
+    `Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "summary": string,                                 // 1-2 sentence overview of the plan`,
+    `  "steps": [ { "courseSlug": string, "title": string, "reason": string } ]`,
+    `}`,
+    `Use only slugs from the list above. Do not wrap the JSON in markdown fences.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * System prompt for generating a vocabulary flashcard deck for a topic (Flashcards mode).
+ * Instructs the model to return ONLY JSON matching the GeneratedFlashcardDeck schema; the
+ * output is still validated with Zod on return.
+ */
+export function buildFlashcardPrompt(
+  topic: string,
+  options?: ChatOptions & { count?: number },
+): string {
+  const language = options?.languageName ?? 'the target language';
+  const count = Math.min(Math.max(options?.count ?? 8, 1), 30);
+  return [
+    `You are a ${language} vocabulary coach building a flashcard deck about "${topic}".`,
+    options?.level ? LEVEL_GUIDANCE[options.level] : '',
+    `Produce ${count} useful vocabulary cards relevant to the topic.`,
+    `Each card's "term" is a word or short phrase in ${language}; "translation" is its English meaning;`,
+    `"example" is a short natural example sentence in ${language} using the term.`,
+    `Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "title": string,                       // a short deck title`,
+    `  "description": string,                 // one-line description of the deck`,
+    `  "cards": [ { "term": string, "translation": string, "example": string } ]`,
+    `}`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /** System prompt for evaluating a single learner sentence (Sentence Mode). */
 export function buildSentenceEvalPrompt(prompt: string, options?: ChatOptions): string {
   const language = options?.languageName ?? 'the target language';
@@ -201,6 +298,29 @@ export function buildSentenceEvalPrompt(prompt: string, options?: ChatOptions): 
     `  "grammar_score": number,      // 0-100`,
     `  "naturalness_score": number,  // 0-100`,
     `  "overall_score": number       // 0-100`,
+    `}`,
+    `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Builds the daily-feedback (progress summary) prompt from an aggregated snapshot. */
+export function buildProgressSummaryPrompt(
+  snapshot: ProgressSnapshot,
+  options?: ChatOptions,
+): string {
+  const language = options?.languageName ?? snapshot.languageName ?? 'the target language';
+  return [
+    `You are an encouraging ${language} learning coach writing a short daily-feedback note.`,
+    `Here is the learner's recent activity (already aggregated):`,
+    JSON.stringify(snapshot),
+    `Write brief, motivating, specific feedback. Return ONLY a JSON object with EXACTLY these keys:`,
+    `{`,
+    `  "summary": string,          // one short encouraging paragraph`,
+    `  "highlights": string[],     // 0-4 concrete things that went well`,
+    `  "suggestions": string[],    // 1-3 concrete next steps`,
+    `  "hasActivity": boolean      // false only if there was no activity at all`,
     `}`,
     `Do not wrap the JSON in markdown fences or add any text outside the JSON.`,
   ]

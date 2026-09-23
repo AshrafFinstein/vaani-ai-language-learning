@@ -120,6 +120,47 @@ enum ActionItemPriority {
   HIGH
 }
 
+// ── Courses (Phase 9) ───────────────────────────────────────────────────────
+enum ExerciseKind {
+  MULTIPLE_CHOICE
+  FILL_BLANK
+  TRANSLATE
+  FREE_RESPONSE
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+}
+
+// ── Flashcards (vocabulary decks + spaced-repetition review) ─────────────────
+/// The learner's self-graded result for one flashcard review, feeding the simple
+/// spaced-repetition scheduler (SM-2-inspired, kept deliberately small).
+enum FlashcardResult {
+  AGAIN
+  GOOD
+  EASY
+}
+
+// ── Progress + Analytics (Phase 10) ──────────────────────────────────────────
+/// A category of learning activity recorded when a feature completes. Feeds the
+/// Progress dashboard aggregation (learning minutes, sessions-by-type, weekly series).
+enum ActivityKind {
+  CHAT
+  ROLEPLAY
+  CALL
+  DIALOGUE
+  WORD
+  SENTENCE
+  FLASHCARD
+  COURSE
+  DEBATE
+  PHOTO
+  CHARACTER
+  SCENARIO
+  MEETING
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -139,6 +180,13 @@ model User {
   meetingSettings  MeetingSettings?
   debates          Debate[]
   photoSessions    PhotoSession[]
+  courseEnrollments CourseEnrollment[]
+  lessonProgress    LessonProgress[]
+  flashcardDecks    FlashcardDeck[]
+  flashcardReviews  FlashcardReview[]
+  activityEvents    ActivityEvent[]
+  achievements      UserAchievement[]
+  auditLogs         AuditLog[]
 
   @@index([email])
 }
@@ -487,4 +535,243 @@ model PhotoMessage {
   createdAt      DateTime     @default(now())
 
   @@index([photoSessionId, createdAt])
+}
+
+// ── Courses (Phase 9) ───────────────────────────────────────────────────────
+
+/// A structured learning course (Phase 9, master plan §17). Seeded product content
+/// grouping modules → lessons → exercises. `languageCode` is the language the course
+/// teaches. Learners enroll to track progress.
+model Course {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  description     String        @db.Text
+  languageCode    String
+  level           LearningLevel @default(BEGINNER)
+  coverEmoji      String        @default("📘")
+  estimatedMinutes Int          @default(0)
+  sortOrder       Int           @default(0)
+  isPublished     Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+
+  @@index([languageCode])
+  @@index([isPublished, sortOrder])
+}
+
+/// An ordered section within a course grouping related lessons.
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String   @db.Text
+  ordinal     Int
+  createdAt   DateTime @default(now())
+
+  lessons Lesson[]
+
+  @@index([courseId, ordinal])
+}
+
+/// A single lesson within a module. `content` holds the teaching material (markdown-ish
+/// text); exercises reinforce it. Learners mark lessons complete to advance progress.
+model Lesson {
+  id          String   @id @default(cuid())
+  moduleId    String
+  module      CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  content     String   @db.Text
+  ordinal     Int
+  estimatedMinutes Int @default(5)
+  createdAt   DateTime @default(now())
+
+  exercises Exercise[]
+  progress  LessonProgress[]
+
+  @@index([moduleId, ordinal])
+}
+
+/// An exercise attached to a lesson. `options` (for MULTIPLE_CHOICE) is a string[]; the
+/// canonical `answer` is used for deterministic grading, while FREE_RESPONSE/TRANSLATE
+/// exercises are evaluated through the @vaani/ai abstraction.
+model Exercise {
+  id          String       @id @default(cuid())
+  lessonId    String
+  lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  kind        ExerciseKind @default(MULTIPLE_CHOICE)
+  prompt      String       @db.Text
+  options     String[]
+  answer      String       @db.Text
+  explanation String       @db.Text @default("")
+  ordinal     Int
+  createdAt   DateTime     @default(now())
+
+  @@index([lessonId, ordinal])
+}
+
+/// A learner's enrollment in a course. Progress is derived from LessonProgress rows.
+model CourseEnrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+}
+
+/// Records that a learner completed a lesson (Phase 9). Aggregated into course progress.
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+// ── Flashcards ───────────────────────────────────────────────────────────────
+
+/// A vocabulary flashcard deck. A deck is either a shared *system* deck (`userId`
+/// null, seeded product content) or a *user-owned* deck (e.g. AI-generated for a
+/// topic). Distinct from Word mode: decks carry a title/description and are studied
+/// with a spaced-repetition review flow. `languageCode` is the language being learned.
+model FlashcardDeck {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text @default("")
+  languageCode String
+  /// Null for shared system decks; set for a learner's own (or AI-generated) deck.
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// True for seeded/shared decks visible to everyone.
+  isSystem     Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cards Flashcard[]
+
+  @@index([userId])
+  @@index([isSystem, sortOrder])
+}
+
+/// A single card in a deck: the `term`/front (in the target language) and its
+/// `translation`/back, with an optional example sentence for context.
+model Flashcard {
+  id        String   @id @default(cuid())
+  deckId    String
+  deck      FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  term      String
+  translation String
+  example   String?  @db.Text
+  ordinal   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  reviews FlashcardReview[]
+
+  @@index([deckId, ordinal])
+}
+
+/// Per-user spaced-repetition state for one flashcard (SM-2-inspired). `ease` scales
+/// the interval growth, `intervalDays` is the current spacing, and `dueAt` is when the
+/// card should next be reviewed. Updated each time the learner grades a card.
+model FlashcardReview {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId  String
+  flashcard    Flashcard       @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  ease         Float           @default(2.5)
+  intervalDays Int             @default(0)
+  repetitions  Int             @default(0)
+  dueAt        DateTime        @default(now())
+  lastResult   FlashcardResult?
+  lastReviewedAt DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, flashcardId])
+  @@index([userId, dueAt])
+}
+
+// ── Progress + Analytics (Phase 10) ──────────────────────────────────────────
+
+/// A lightweight, persisted record that a learning activity completed. Feature
+/// services append one of these at the natural completion point of an activity
+/// (a message sent, a card reviewed, a lesson completed, a meeting analyzed, …).
+/// The Progress module aggregates these into totals, a streak, and a weekly series.
+/// `minutes` is an estimated duration credited to the activity; `xp` is experience
+/// awarded. Both are small fixed amounts per activity kind (deterministic).
+model ActivityEvent {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      ActivityKind
+  minutes   Int          @default(0)
+  xp        Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// A seeded achievement definition (original Vaani AI content). Unlock logic lives in
+/// the progress service; `code` is a stable slug the service checks against.
+model Achievement {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  description String   @db.Text
+  icon        String   @default("🏆")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  users UserAchievement[]
+}
+
+// ── Audit logging (Phase 11 — security) ──────────────────────────────────────
+
+/// An append-only audit record of a *sensitive* action (recording start/stop,
+/// transcript access, and data deletion). It stores only *references* — an action
+/// verb, the target type, and the target id — never secrets or transcript content
+/// (CLAUDE.md §10). `metadata` may hold small non-sensitive context (e.g. a state
+/// transition), never payloads. Retained for security/forensic review; deleting the
+/// owning user cascades their audit rows.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String // e.g. RECORDING_START, TRANSCRIPT_ACCESS, RECORDING_DELETE
+  targetType String // e.g. MEETING, TRANSCRIPT, RECORDING
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+/// Join row recording that a learner unlocked an achievement, and when.
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
 }

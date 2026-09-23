@@ -12,6 +12,7 @@ import { buildDebatePrompt, type ChatMessage, type ChatOptions } from '@vaani/ai
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 type DebateWithMessages = Prisma.DebateGetPayload<{ include: { messages: true } }>;
 type DebateMessage = Prisma.DebateMessageGetPayload<object>;
@@ -127,6 +128,7 @@ export const debateService = {
     });
     // Record the practice activity for future progress analytics.
     await prisma.practiceSession.create({ data: { userId, kind: 'DEBATE' } });
+    await recordActivity(userId, 'DEBATE');
     return toDebateDTO(debate);
   },
 

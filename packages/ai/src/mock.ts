@@ -1,9 +1,18 @@
 import {
   AIFeedbackSchema,
+  DailyFeedbackDTO,
   DebateFeedbackSchema,
+  ExerciseResultSchema,
+  GeneratedFlashcardDeckSchema,
+  LearningPathSchema,
   SentenceEvaluationSchema,
   type AIFeedback,
+  type DailyFeedbackDTO as DailyFeedback,
   type DebateFeedback,
+  type ExerciseResult,
+  type GeneratedFlashcardDeck,
+  type LearningPath,
+  type LearningPathCatalogItem,
   type SentenceEvaluation,
 } from '@vaani/types';
 import type {
@@ -12,6 +21,7 @@ import type {
   ChatOptions,
   ChatResult,
   ImageDescriptionResult,
+  ProgressSnapshot,
   SpeechToTextProvider,
   SpeechToTextResult,
   TextToSpeechProvider,
@@ -179,6 +189,207 @@ export class MockAIProvider implements AIProvider {
       argument_quality_score: engaged ? 82 : 68,
       persuasiveness_score: engaged ? 78 : 64,
       overall_score: engaged ? 80 : 66,
+    });
+  }
+
+  /**
+   * Deterministic open-ended exercise grading. NO network call: compares a normalised
+   * version of the learner's answer against the expected answer, awarding partial credit
+   * when the expected answer's keywords are present. The same input always yields the same
+   * result (important for reproducible tests).
+   */
+  async evaluateExercise(
+    _prompt: string,
+    expected: string,
+    answer: string,
+    _options?: ChatOptions,
+  ): Promise<ExerciseResult> {
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^\p{L}\p{N}\s]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const a = normalize(answer);
+    const e = normalize(expected);
+    const exact = a === e;
+
+    const expectedWords = e.split(' ').filter(Boolean);
+    const answerWords = new Set(a.split(' ').filter(Boolean));
+    const overlap = expectedWords.filter((w) => answerWords.has(w)).length;
+    const ratio = expectedWords.length ? overlap / expectedWords.length : a.length ? 1 : 0;
+    const isCorrect = exact || ratio >= 0.6;
+    const score = exact ? 100 : Math.round(ratio * 100);
+
+    return ExerciseResultSchema.parse({
+      isCorrect,
+      correctAnswer: expected,
+      feedback: isCorrect
+        ? 'Nicely done — your answer matches the target meaning.'
+        : `Not quite. Compare your answer with the expected one and try again.`,
+      score,
+    });
+  }
+
+  /**
+   * Deterministic learning-path generation. NO network call: filters the catalog to the
+   * learner's language when known, sorts by level then title, and takes the first few as an
+   * ordered plan. Only real catalog slugs are recommended.
+   */
+  async generateLearningPath(
+    catalog: LearningPathCatalogItem[],
+    options?: ChatOptions & { goal?: string },
+  ): Promise<LearningPath> {
+    const levelRank: Record<string, number> = {
+      BEGINNER: 0,
+      ELEMENTARY: 1,
+      INTERMEDIATE: 2,
+      UPPER_INTERMEDIATE: 3,
+      ADVANCED: 4,
+    };
+
+    const relevant = options?.languageCode
+      ? catalog.filter((c) => c.languageCode === options.languageCode)
+      : [...catalog];
+    const pool = relevant.length ? relevant : [...catalog];
+
+    const ordered = [...pool].sort((x, y) => {
+      const byLevel = (levelRank[x.level] ?? 0) - (levelRank[y.level] ?? 0);
+      return byLevel !== 0 ? byLevel : x.title.localeCompare(y.title);
+    });
+
+    const steps = ordered.slice(0, 4).map((c, i) => ({
+      courseSlug: c.slug,
+      title: c.title,
+      reason:
+        i === 0
+          ? 'Start here to build a solid foundation at your current level.'
+          : `Continue with this ${c.level.toLowerCase().replace(/_/g, ' ')} course to keep progressing.`,
+    }));
+
+    const goalText = options?.goal ? ` toward your goal "${options.goal}"` : '';
+    return LearningPathSchema.parse({
+      summary: steps.length
+        ? `A ${steps.length}-step plan${goalText} that builds your skills course by course.`
+        : 'No courses are available yet to build a learning path.',
+      steps,
+    });
+  }
+
+  /**
+   * Deterministic flashcard generation. NO network call: cards are derived from the topic
+   * text itself (its words plus a stable set of learning-oriented templates), so the same
+   * topic + count always yields the same deck. Output is schema-validated on return.
+   */
+  async generateFlashcards(
+    topic: string,
+    options?: ChatOptions & { count?: number },
+  ): Promise<GeneratedFlashcardDeck> {
+    const language = options?.languageName ?? 'the target language';
+    const cleanTopic = topic.trim() || 'everyday vocabulary';
+    const count = Math.min(Math.max(options?.count ?? 8, 1), 30);
+
+    // A stable, hand-authored set of card *templates*. We rotate through them and key each
+    // card off the topic so the deck is topic-flavoured yet fully deterministic (no RNG).
+    const templates: Array<{ term: string; translation: string; example: string }> = [
+      { term: 'hello', translation: 'a greeting', example: 'I say hello when I meet someone new.' },
+      { term: 'please', translation: 'a polite request word', example: 'Could you help me, please?' },
+      { term: 'thank you', translation: 'an expression of gratitude', example: 'Thank you for your help.' },
+      { term: 'yes', translation: 'an affirmative answer', example: 'Yes, that sounds good.' },
+      { term: 'no', translation: 'a negative answer', example: 'No, not today.' },
+      { term: 'excuse me', translation: 'a phrase to get attention', example: 'Excuse me, where is the station?' },
+      { term: 'how much', translation: 'a phrase to ask a price', example: 'How much is this?' },
+      { term: 'where', translation: 'a word to ask about place', example: 'Where is the museum?' },
+      { term: 'water', translation: 'a drink of clear liquid', example: 'Can I have some water?' },
+      { term: 'help', translation: 'to give assistance', example: 'Can you help me?' },
+      { term: 'today', translation: 'the current day', example: 'What are we doing today?' },
+      { term: 'friend', translation: 'a person you like and trust', example: 'She is a good friend.' },
+    ];
+
+    const cards = Array.from({ length: count }, (_, i) => {
+      const t = templates[i % templates.length]!;
+      return {
+        // Prefix the term with the topic so decks are distinguishable and topic-flavoured.
+        term: `${cleanTopic}: ${t.term}`,
+        translation: t.translation,
+        example: t.example,
+      };
+    });
+
+    return GeneratedFlashcardDeckSchema.parse({
+      title: `${cleanTopic} flashcards`,
+      description: `A ${count}-card ${language} deck about ${cleanTopic}.`,
+      cards,
+    });
+  }
+
+  /**
+   * Deterministic daily-feedback summary. NO network call: the copy is assembled from
+   * the aggregated snapshot with simple, stable rules, so the same snapshot always
+   * yields the same feedback (important for reproducible tests).
+   */
+  async summarizeProgress(
+    snapshot: ProgressSnapshot,
+    _options?: ChatOptions,
+  ): Promise<DailyFeedback> {
+    const language = snapshot.languageName ?? 'your target language';
+    const hasActivity = snapshot.totalSessions > 0 || snapshot.weeklyMinutes > 0;
+
+    if (!hasActivity) {
+      return DailyFeedbackDTO.parse({
+        summary: `Welcome! You haven't practiced ${language} yet. Start with a quick chat or a few flashcards to begin building your streak.`,
+        highlights: [],
+        suggestions: [
+          'Try a short AI chat to warm up',
+          'Review a flashcard deck to learn new words',
+          `Set aside ${snapshot.dailyGoalMinutes} minutes today to hit your goal`,
+        ],
+        hasActivity: false,
+      });
+    }
+
+    const goalMet = snapshot.minutesToday >= snapshot.dailyGoalMinutes && snapshot.dailyGoalMinutes > 0;
+    const highlights: string[] = [];
+    if (snapshot.currentStreak > 0) {
+      highlights.push(`You're on a ${snapshot.currentStreak}-day streak — consistency pays off.`);
+    }
+    if (snapshot.weeklyMinutes > 0) {
+      highlights.push(`You practiced ${snapshot.weeklyMinutes} minutes this week.`);
+    }
+    if (snapshot.flashcardsReviewed > 0) {
+      highlights.push(`You reviewed ${snapshot.flashcardsReviewed} flashcards.`);
+    }
+    if (snapshot.conversationCount > 0) {
+      highlights.push(`You've held ${snapshot.conversationCount} AI conversations.`);
+    }
+
+    const suggestions: string[] = [];
+    if (!goalMet) {
+      const remaining = Math.max(0, snapshot.dailyGoalMinutes - snapshot.minutesToday);
+      suggestions.push(`Just ${remaining} more minutes today to reach your daily goal.`);
+    }
+    if (snapshot.flashcardsReviewed === 0) {
+      suggestions.push('Add a flashcard review to reinforce vocabulary.');
+    }
+    if (snapshot.courseCompletionPercent < 100) {
+      suggestions.push('Continue your enrolled course to build structured skills.');
+    }
+    if (suggestions.length === 0) {
+      suggestions.push('Great pace — try a harder mode like Debate to stretch yourself.');
+    }
+
+    const summary = goalMet
+      ? `Fantastic work — you hit your daily goal for ${language} today! Keep the momentum going.`
+      : `Nice progress on your ${language} practice. You're building good habits — a little more today keeps your streak alive.`;
+
+    return DailyFeedbackDTO.parse({
+      summary,
+      highlights: highlights.slice(0, 4),
+      suggestions: suggestions.slice(0, 3),
+      hasActivity: true,
     });
   }
 }

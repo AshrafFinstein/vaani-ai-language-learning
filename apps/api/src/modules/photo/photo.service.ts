@@ -9,6 +9,7 @@ import { buildPhotoPrompt, type ChatMessage, type ChatOptions } from '@vaani/ai'
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { getAIProvider } from '../../lib/ai.js';
+import { recordActivity } from '../../lib/activity.js';
 
 type PhotoWithMessages = Prisma.PhotoSessionGetPayload<{ include: { messages: true } }>;
 type PhotoMessage = Prisma.PhotoMessageGetPayload<object>;
@@ -139,6 +140,7 @@ export const photoService = {
       },
     });
     await prisma.practiceSession.create({ data: { userId, kind: 'PHOTO' } });
+    await recordActivity(userId, 'PHOTO');
     return toSessionDTO(session);
   },
 

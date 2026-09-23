@@ -10,7 +10,8 @@ const server = app.listen(env.API_PORT, () => {
 
 async function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
-  server.close();
+  // Stop accepting new connections, then drain in-flight requests before exiting.
+  await new Promise<void>((resolve) => server.close(() => resolve()));
   await prisma.$disconnect();
   process.exit(0);
 }

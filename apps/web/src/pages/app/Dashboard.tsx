@@ -1,14 +1,36 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flame, GraduationCap, Star, Target, TrendingUp } from 'lucide-react';
+import {
+  MessagesSquare,
+  Drama,
+  Phone,
+  BookOpen,
+  SpellCheck,
+  Mic,
+  Image,
+  Scale,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { WeeklyChart } from '@/features/dashboard/WeeklyChart';
 import { useAuthStore } from '@/stores/authStore';
 import { useLanguages } from '@/features/language/useLanguages';
+import { useProgress } from '@/features/progress/useProgress';
 import { greeting } from '@/lib/format';
-import { mockDashboard as d } from '@/mock/dashboard';
+
+/** Quick-practice navigation shortcuts (static — these are links, not learner data). */
+const QUICK_ACTIONS = [
+  { label: 'AI Chat', to: '/app/chat', icon: MessagesSquare },
+  { label: 'Roleplay', to: '/app/roleplay', icon: Drama },
+  { label: 'Call', to: '/app/call', icon: Phone },
+  { label: 'Vocabulary', to: '/app/flashcards', icon: BookOpen },
+  { label: 'Grammar', to: '/app/grammar', icon: SpellCheck },
+  { label: 'Pronunciation', to: '/app/pronunciation', icon: Mic },
+  { label: 'Photo Practice', to: '/app/photo', icon: Image },
+  { label: 'Debate', to: '/app/debate', icon: Scale },
+];
 
 function StatCard({
   icon: Icon,
@@ -40,11 +62,15 @@ function StatCard({
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const { data: languages } = useLanguages();
+  const { data: progress, isLoading } = useProgress();
   const language = languages?.find((l) => l.code === user?.learningLanguageCode);
   const firstName = user?.name?.split(' ')[0] ?? 'there';
-  // Daily-goal target is a real user setting; minutes-today stays mock until Phase 8.
-  const dailyGoalMinutes = user?.dailyGoalMinutes ?? d.dailyGoalMinutes;
-  const goalPct = Math.min(100, Math.round((d.minutesToday / dailyGoalMinutes) * 100));
+
+  const dailyGoalMinutes = progress?.dailyGoalMinutes ?? user?.dailyGoalMinutes ?? 30;
+  const minutesToday = progress?.minutesToday ?? 0;
+  const goalPct =
+    dailyGoalMinutes > 0 ? Math.min(100, Math.round((minutesToday / dailyGoalMinutes) * 100)) : 0;
+  const hasActivity = (progress?.totalSessions ?? 0) > 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -61,32 +87,81 @@ export default function DashboardPage() {
 
       {/* Stat row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={GraduationCap} label="Current level" value={d.level} />
-        <StatCard icon={Flame} label="Day streak" value={`${d.streakDays} days`} hint="Keep it going!" />
-        <StatCard icon={Star} label="Total XP" value={d.xp.toLocaleString()} hint={`${d.xpToNext - d.xp} to next level`} />
-        <StatCard icon={TrendingUp} label="This week" value={`${d.weeklyMinutes} min`} />
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[92px]" />)
+        ) : (
+          <>
+            <StatCard icon={GraduationCap} label="Current level" value={progress?.levelLabel ?? '—'} />
+            <StatCard
+              icon={Flame}
+              label="Day streak"
+              value={`${progress?.currentStreak ?? 0} days`}
+              hint={hasActivity ? 'Keep it going!' : 'Practice to start a streak'}
+            />
+            <StatCard
+              icon={Star}
+              label="Total XP"
+              value={(progress?.xp ?? 0).toLocaleString()}
+              hint={
+                progress && progress.xpToNextLevel > 0
+                  ? `${progress.xpToNextLevel.toLocaleString()} to next level`
+                  : undefined
+              }
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="This week"
+              value={`${progress?.weeklyMinutes ?? 0} min`}
+            />
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Continue learning */}
+        {/* Overall practice time */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Continue learning</CardTitle>
-            <Badge variant="secondary">{d.continueLearning.skill}</Badge>
+          <CardHeader>
+            <CardTitle>Overall practice</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="font-medium">{d.continueLearning.title}</p>
-              <p className="text-sm text-muted-foreground">
-                You&apos;re {d.continueLearning.progress}% through this session.
-              </p>
-            </div>
-            <Progress value={d.continueLearning.progress} />
-            <Button asChild variant="gradient">
-              <Link to={d.continueLearning.to}>
-                Continue <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            {isLoading ? (
+              <Skeleton className="h-16" />
+            ) : hasActivity ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">{progress?.totalMinutes ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Total minutes</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">{progress?.totalSessions ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Sessions</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">
+                    {progress?.conversationCount ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Conversations</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">
+                    {progress?.flashcardsReviewed ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Flashcards</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2">
+                <p className="text-sm text-muted-foreground">
+                  You haven&apos;t practiced yet. Start a session below and your progress will show
+                  up here.
+                </p>
+                <Button asChild variant="gradient">
+                  <Link to="/app/chat">
+                    Start practicing <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -98,14 +173,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-end justify-between">
-              <span className="text-3xl font-bold tabular-nums">{d.minutesToday}</span>
+              <span className="text-3xl font-bold tabular-nums">{minutesToday}</span>
               <span className="text-sm text-muted-foreground">/ {dailyGoalMinutes} min</span>
             </div>
             <Progress value={goalPct} />
             <p className="text-sm text-muted-foreground">
               {goalPct >= 100
                 ? 'Goal complete — amazing! 🎉'
-                : `${dailyGoalMinutes - d.minutesToday} minutes left today.`}
+                : `${Math.max(0, dailyGoalMinutes - minutesToday)} minutes left today.`}
             </p>
           </CardContent>
         </Card>
@@ -115,7 +190,7 @@ export default function DashboardPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Quick practice</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {d.quickActions.map((action) => (
+          {QUICK_ACTIONS.map((action) => (
             <Link
               key={action.label}
               to={action.to}
@@ -133,37 +208,59 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Weekly activity */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Weekly activity</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/app/progress">
+                View all <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            <WeeklyChart data={d.weekly} />
+            {isLoading ? (
+              <Skeleton className="h-[200px]" />
+            ) : (
+              <WeeklyChart data={progress?.weekly ?? []} />
+            )}
           </CardContent>
         </Card>
 
-        {/* Skills */}
+        {/* Course progress */}
         <Card>
           <CardHeader>
-            <CardTitle>Skills</CardTitle>
+            <CardTitle>Courses</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3.5">
-            {d.skills.map((skill) => (
-              <div key={skill.key} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{skill.label}</span>
-                  <span className="font-medium tabular-nums">{skill.score}</span>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <Skeleton className="h-16" />
+            ) : (progress?.coursesEnrolled ?? 0) > 0 ? (
+              <>
+                <div className="flex items-end justify-between">
+                  <span className="text-3xl font-bold tabular-nums">
+                    {progress?.courseCompletionPercent ?? 0}%
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {progress?.coursesCompleted ?? 0}/{progress?.coursesEnrolled ?? 0} done
+                  </span>
                 </div>
-                <Progress value={skill.score} className="h-2" />
+                <Progress value={progress?.courseCompletionPercent ?? 0} />
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/app/courses">Continue courses</Link>
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Enroll in a course to track structured progress.
+                </p>
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/app/courses">Browse courses</Link>
+                </Button>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>
-
-      <p className="text-center text-xs text-muted-foreground">
-        Stats shown are sample data for the dashboard preview — live progress arrives in a later
-        phase.
-      </p>
     </div>
   );
 }

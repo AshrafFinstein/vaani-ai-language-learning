@@ -26,5 +26,8 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     css: false,
+    // Async RTL form-interaction tests can run ~5s under full-suite parallel load;
+    // raise the per-test timeout so they don't flake against the 5s default.
+    testTimeout: 15000,
   },
 });

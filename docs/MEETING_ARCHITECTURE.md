@@ -45,8 +45,24 @@ apps/api/src/modules/meeting         route → controller → service → prisma
 | POST   | `/:id/recording/control`      | PAUSE / RESUME / STOP (STOP triggers analysis) |
 | GET    | `/settings`                   | Per-user privacy defaults                      |
 | PATCH  | `/settings`                   | Update privacy defaults                        |
+| POST   | `/:id/transcribe`             | Real STT on **provided** audio → analysis (consent-gated) |
 | DELETE | `/:id/recording`              | Delete stored recording session                |
 | DELETE | `/:id/transcript`             | Delete stored transcript + segments            |
+
+### Real STT on PROVIDED audio (`POST /:id/transcribe`)
+
+The meeting module can now run **real speech-to-text on already-recorded audio that the
+caller supplies** — this is NOT live capture. The endpoint accepts base64 audio
+(`{ audio, languageCode? }`, `MeetingTranscribeAudioInput`), transcribes it through the
+`@vaani/ai` STT provider (`getSttProvider()` — Mock by default, OpenAI Whisper when
+`SPEECH_PROVIDER`/`AI_PROVIDER=openai` + a key), then feeds the transcript into the existing
+analysis pipeline (`runAnalysis` now accepts pre-supplied segments). It is auth-protected and
+rate-limited (`speechLimiter`), with a 25mb audio body limit.
+
+**Consent is enforced**: the meeting must have `transcriptionEnabled` AND a recording session
+that granted `transcriptConsent`, else 403. Because plain STT returns text with no
+diarization, the transcript is stored as a single speaker segment — the analyzer still never
+fabricates owners/decisions (§15). **Live/covert capture stays deferred** (§14).
 
 ## Consent & privacy model (CLAUDE.md §13–15)
 
@@ -92,10 +108,12 @@ These guarantees are covered by `packages/meeting/tests/mock-analyzer.test.ts`.
 Real capture is **deferred pending environment validation**. The following are explicitly
 out of scope for Phase 7B and gated behind the provider abstraction:
 
-- Real Microsoft Teams / Azure Virtual Desktop meeting capture (audio/video/transcript),
-  respecting Teams/AVD/OS/org recording & consent policies.
-- Real speech-to-text and speaker diarization (a production `MeetingAnalysisProvider` /
-  `MeetingTranscriptProvider` backed by STT + LLM).
+- Real **live** Microsoft Teams / Azure Virtual Desktop meeting capture (audio/video/
+  transcript), respecting Teams/AVD/OS/org recording & consent policies. (Real STT on
+  *provided* audio via `POST /:id/transcribe` now exists — only live/covert capture is deferred.)
+- Speaker **diarization** and a production LLM-backed `MeetingAnalysisProvider` (the analysis
+  step still uses the deterministic Mock analyzer; STT on provided audio yields a single
+  un-diarized segment).
 - Enforcement of retention windows (scheduled purge of recordings/transcripts) beyond the
   manual per-meeting delete controls shipped here.
 

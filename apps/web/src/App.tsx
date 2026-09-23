@@ -21,16 +21,20 @@ import MeetingDetailPage from '@/pages/app/MeetingDetail';
 import CharactersPage from '@/pages/app/Characters';
 import DebatePage from '@/pages/app/Debate';
 import PhotoPage from '@/pages/app/Photo';
+import CoursesPage from '@/pages/app/Courses';
+import CourseDetailPage from '@/pages/app/CourseDetail';
+import FlashcardsPage from '@/pages/app/Flashcards';
+import FlashcardStudyPage from '@/pages/app/FlashcardStudy';
+import ExplorePage from '@/pages/app/Explore';
+import ProgressPage from '@/pages/app/Progress';
 import ProfilePage from '@/pages/app/Profile';
 import ComingSoonPage from '@/pages/app/ComingSoon';
 
 /** Authenticated feature routes not yet built — each renders the ComingSoon page. */
 const COMING_SOON = [
-  'courses',
   'vocabulary',
   'grammar',
   'pronunciation',
-  'progress',
   'history',
   'achievements',
   'subscription',
@@ -83,6 +87,12 @@ export default function App() {
         <Route path="debate/:id" element={<DebatePage />} />
         <Route path="photo" element={<PhotoPage />} />
         <Route path="photo/:id" element={<PhotoPage />} />
+        <Route path="courses" element={<CoursesPage />} />
+        <Route path="courses/:slug" element={<CourseDetailPage />} />
+        <Route path="flashcards" element={<FlashcardsPage />} />
+        <Route path="flashcards/:deckId" element={<FlashcardStudyPage />} />
+        <Route path="explore" element={<ExplorePage />} />
+        <Route path="progress" element={<ProgressPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<Navigate to="/app/profile" replace />} />
         {COMING_SOON.map((path) => (

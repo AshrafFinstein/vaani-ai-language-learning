@@ -57,6 +57,7 @@ vi.mock('../src/prisma.js', () => {
       deleteMany: async () => ({ count: 1 }),
     },
     transcript: { deleteMany: async () => ({ count: 0 }), create: async () => ({}) },
+    auditLog: { create: async () => ({}) },
     meetingSummary: { deleteMany: async () => ({ count: 0 }), create: async () => ({}) },
     meetingDecision: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
     actionItem: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
@@ -131,5 +132,54 @@ describe('POST /api/meetings/:id/recording/start (consent enforcement)', () => {
       .send({ recordingConsent: true, transcriptConsent: true });
     expect(res.status).toBe(200);
     expect(res.body.data.recording).toMatchObject({ state: 'RECORDING', recordingConsent: true });
+  });
+});
+
+describe('POST /api/meetings/:id/transcribe (real STT on provided audio)', () => {
+  const AUDIO = `data:audio/webm;base64,${Buffer.from('fake-audio').toString('base64')}`;
+
+  it('requires authentication', async () => {
+    const res = await request(app).post('/api/meetings/m_1/transcribe').send({ audio: AUDIO });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a missing audio payload with 422 validation', async () => {
+    const res = await request(app)
+      .post('/api/meetings/m_1/transcribe')
+      .set('Cookie', COOKIE)
+      .send({});
+    expect(res.status).toBe(422);
+  });
+
+  it('forbids transcription when the meeting has it disabled / no transcript consent', async () => {
+    // The mocked meeting has transcriptionEnabled=false and transcriptConsent=false → 403.
+    const res = await request(app)
+      .post('/api/meetings/m_1/transcribe')
+      .set('Cookie', COOKIE)
+      .send({ audio: AUDIO });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('Data-deletion / retention (privacy controls)', () => {
+  it('requires authentication to delete a recording', async () => {
+    const res = await request(app).delete('/api/meetings/m_1/recording');
+    expect(res.status).toBe(401);
+  });
+
+  it('deletes the stored recording for a meeting the user owns', async () => {
+    const res = await request(app)
+      .delete('/api/meetings/m_1/recording')
+      .set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ deleted: true });
+  });
+
+  it('deletes the stored transcript for a meeting the user owns', async () => {
+    const res = await request(app)
+      .delete('/api/meetings/m_1/transcript')
+      .set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ deleted: true });
   });
 });
