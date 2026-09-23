@@ -45,7 +45,7 @@ swapping a backend is an env change only. Concrete providers live in `@vaani/mee
 
 | Abstraction               | Default (offline)             | Real / opt-in                         | Status  |
 | ------------------------- | ----------------------------- | ------------------------------------- | ------- |
-| `CalendarProvider`        | `MockCalendarProvider`        | `OutlookCalendarProvider` (Graph)     | REAL    |
+| `CalendarProvider`        | `MockCalendarProvider`        | `OutlookCalendarProvider` (Graph) · `IcsCalendarProvider` (published feed) | REAL |
 | `MeetingAnalysisProvider` | `MockMeetingAnalysisProvider` | `OpenAIMeetingAnalysisProvider`       | REAL    |
 | `MeetingTranscriptProvider` | `MockMeetingTranscriptProvider` | (real STT on provided audio via API) | REAL STT / mock generator |
 | `MeetingCaptureProvider`  | `LocalAudioCaptureProvider`   | — (real audio capture)                | STUB / DEFERRED |
@@ -53,7 +53,19 @@ swapping a backend is an env change only. Concrete providers live in `@vaani/mee
 
 Factories: `createCalendarProvider(env)`, `createMeetingAnalysisProvider(env)`,
 `createCaptureProvider()`. Each returns the real provider ONLY when its selector is set
-AND the required credential/token is present; otherwise the deterministic Mock.
+AND the required credential/token is present; otherwise the deterministic Mock. For the
+calendar, precedence is **ICS (feed URL) → Outlook (Graph token) → Mock**.
+
+### Admin-free (AVD) ICS path
+
+For locked-down Azure Virtual Desktop users who cannot do the Graph app registration /
+admin consent, the **`IcsCalendarProvider`** reads a published, read-only ICS feed
+(`CALENDAR_PROVIDER=ics` + `ICS_CALENDAR_URL`, or a per-user `MeetingSettings.icsCalendarUrl`
+which activates ICS on its own). A `.ics` file can also be imported directly. Analysis is
+fed from an uploaded recording (real Whisper STT) OR a provided transcript (`.vtt`/plain
+text) — both consent-gated. See **`docs/MEETING_AVD_SETUP.md`** for the full flow, how to
+publish the Outlook ICS link, and the parser's recurring-event limitations. Graph and live
+local/AVD capture remain optional/deferred.
 
 ## What is REAL vs STUB vs DEFERRED
 

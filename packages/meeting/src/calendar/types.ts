@@ -9,7 +9,7 @@ import type { CalendarEventDTO } from '@vaani/types';
  * Outlook (Microsoft Graph) provider is opt-in via env + a bearer token.
  */
 export interface CalendarProvider {
-  readonly name: 'mock' | 'outlook';
+  readonly name: 'mock' | 'outlook' | 'ics';
   /**
    * Lists upcoming meetings in the `[sinceIso, untilIso]` window as normalized events.
    * Implementations must not fabricate events — an empty window yields `[]`.

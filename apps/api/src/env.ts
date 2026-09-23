@@ -34,10 +34,15 @@ const EnvSchema = z.object({
   OPENAI_TTS_VOICE: z.string().optional(),
 
   // ── Calendar (Meeting AI automation) ────────────────────────────────────────
-  // Calendar backend selector. 'mock' (default, offline) | 'outlook' (real Graph).
+  // Calendar backend selector. 'mock' (default, offline) | 'outlook' (real Graph) |
+  // 'ics' (admin-free published-feed path — no Azure app registration needed).
   // Outlook activates ONLY when CALENDAR_PROVIDER=outlook AND MS_GRAPH_ACCESS_TOKEN
-  // is set — otherwise the deterministic Mock is used, so the suite runs offline.
+  // is set; ICS activates when CALENDAR_PROVIDER=ics + ICS_CALENDAR_URL (or a per-user
+  // URL) is set. Otherwise the deterministic Mock is used, so the suite runs offline.
   CALENDAR_PROVIDER: z.string().default('mock'),
+  // Published, read-only Outlook/Teams ICS feed URL (the AVD-friendly path). Empty by
+  // default so Mock stays the default. A per-user URL (MeetingSettings) overrides this.
+  ICS_CALENDAR_URL: z.string().optional(),
   // Microsoft Graph *delegated* bearer access token. Minting it (Azure AD/MSAL OAuth)
   // is out of scope; the Azure app registration + delegated Calendars.Read /
   // OnlineMeetings.Read consent is required to obtain it. NEVER commit a real token.

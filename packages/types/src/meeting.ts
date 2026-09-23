@@ -301,7 +301,7 @@ export type NotificationListDTO = z.infer<typeof NotificationListDTO>;
 // ── Calendar sync (real Outlook read-only when configured; Mock default) ──────
 
 /** Which calendar backend is active — surfaced so the UI can show connection status. */
-export const CalendarProviderKind = z.enum(['mock', 'outlook']);
+export const CalendarProviderKind = z.enum(['mock', 'outlook', 'ics']);
 export type CalendarProviderKind = z.infer<typeof CalendarProviderKind>;
 
 /** A normalized calendar event (provider-agnostic). Read-only — Vaani never writes back. */
@@ -343,6 +343,57 @@ export const CalendarSyncResultDTO = z.object({
   meetings: z.array(MeetingDTO),
 });
 export type CalendarSyncResultDTO = z.infer<typeof CalendarSyncResultDTO>;
+
+// ── ICS calendar (admin-free AVD path: published feed URL + .ics file import) ──
+
+/**
+ * Sets the user's published Outlook/Teams ICS feed URL and triggers a sync. This is the
+ * admin-free alternative to Microsoft Graph — no Azure app registration is required.
+ * The URL must be http(s) (or webcal, normalized server-side); an empty string CLEARS it.
+ */
+export const SetIcsCalendarInput = z.object({
+  url: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || /^(https?|webcal):\/\//i.test(v),
+      'Enter an http(s) or webcal ICS feed URL, or leave blank to disconnect',
+    ),
+  /** Optional sync window (defaults applied server-side). */
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type SetIcsCalendarInput = z.infer<typeof SetIcsCalendarInput>;
+
+/**
+ * Imports an uploaded `.ics` file: its raw text (optionally base64/data-URL wrapped) is
+ * parsed and upserted into local Meetings via the existing sync idempotency (UID key).
+ * No network — the content is supplied by the caller (drag-and-drop / file picker).
+ */
+export const ImportIcsFileInput = z.object({
+  /** Raw ICS text, or a `data:text/calendar;base64,…` / bare base64 payload. */
+  content: z.string().min(1, 'ICS file content is required').max(5_000_000, 'ICS file is too large'),
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type ImportIcsFileInput = z.infer<typeof ImportIcsFileInput>;
+
+// ── Provided transcript → analysis (AVD capture story: drop a .vtt/plain text) ─
+
+/**
+ * Feeds a PROVIDED transcript (Teams `.vtt` or plain text) straight into the analysis
+ * pipeline — the AVD-friendly complement to the audio→Whisper route. Consent-gated: the
+ * meeting must have transcription enabled AND transcript consent granted (CLAUDE.md §13).
+ */
+export const ProvidedTranscriptInput = z.object({
+  /** Raw transcript text (a WebVTT document or plain text). */
+  content: z.string().min(1, 'Transcript content is required').max(5_000_000, 'Transcript is too large'),
+  /** How to interpret `content`. Defaults to auto-detect (`WEBVTT` header → vtt). */
+  format: z.enum(['vtt', 'text', 'auto']).default('auto'),
+  /** Optional BCP-47/ISO language hint, e.g. "en", "es". */
+  languageCode: z.string().min(2).max(10).optional(),
+});
+export type ProvidedTranscriptInput = z.infer<typeof ProvidedTranscriptInput>;
 
 // ── Scheduler tick (invoked via endpoint; injected `now` for determinism) ─────
 

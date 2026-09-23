@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ImportIcsFileInput,
+  ProvidedTranscriptInput,
   RecordingControlInput,
   ScheduleMeetingInput,
+  SetIcsCalendarInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
@@ -100,6 +103,48 @@ export function useCalendarSync() {
   return useMutation({
     mutationFn: () => meetingApi.calendarSync().then((r) => r.result),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.list }),
+  });
+}
+
+/** Sets the user's published ICS feed URL (admin-free path) and refreshes status + list. */
+export function useSetIcsCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SetIcsCalendarInput) =>
+      meetingApi.setIcsCalendar(input).then((r) => r.result),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.calendarStatus });
+      qc.invalidateQueries({ queryKey: KEYS.list });
+    },
+  });
+}
+
+/** Imports an uploaded `.ics` file into local meetings, then refreshes the list. */
+export function useImportIcs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportIcsFileInput) => meetingApi.importIcs(input).then((r) => r.result),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.list }),
+  });
+}
+
+/** Ingests a PROVIDED transcript (.vtt / plain text) → analysis, then refreshes detail. */
+export function useIngestTranscript(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ProvidedTranscriptInput) =>
+      meetingApi.ingestTranscript(id, input).then((r) => r.meeting),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.detail(id) }),
+  });
+}
+
+/** Uploads a PROVIDED recording (base64 audio) → real STT → analysis, refreshes detail. */
+export function useTranscribeAudio(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { audio: string; languageCode?: string }) =>
+      meetingApi.transcribeAudio(id, vars.audio, vars.languageCode).then((r) => r.meeting),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.detail(id) }),
   });
 }
 

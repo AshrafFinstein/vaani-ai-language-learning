@@ -1,10 +1,13 @@
 import type { Request, Response } from 'express';
 import type {
   CalendarSyncInput,
+  ImportIcsFileInput,
   MeetingTranscribeAudioInput,
+  ProvidedTranscriptInput,
   RecordingControlInput,
   ScheduleMeetingInput,
   SchedulerTickInput,
+  SetIcsCalendarInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
@@ -87,9 +90,10 @@ export const meetingController = {
 
   // ── Calendar sync (read-only) ───────────────────────────────────────────────
 
-  /** Reports the active calendar backend + connection status (Mock vs Outlook). */
-  async calendarStatus(_req: Request, res: Response): Promise<void> {
-    res.status(200).json({ data: { status: calendarService.status() } });
+  /** Reports the active calendar backend + connection status (Mock vs Outlook vs ICS). */
+  async calendarStatus(req: Request, res: Response): Promise<void> {
+    const status = await calendarService.status(userId(req));
+    res.status(200).json({ data: { status } });
   },
 
   /** Syncs upcoming calendar events into local Meeting rows (idempotent). */
@@ -97,6 +101,30 @@ export const meetingController = {
     const { sinceIso, untilIso } = req.body as CalendarSyncInput;
     const result = await calendarService.sync(userId(req), sinceIso, untilIso);
     res.status(200).json({ data: { result } });
+  },
+
+  /** Sets the user's published ICS feed URL (admin-free path) and triggers a sync. */
+  async setIcsCalendar(req: Request, res: Response): Promise<void> {
+    const { url, sinceIso, untilIso } = req.body as SetIcsCalendarInput;
+    const result = await calendarService.setIcsUrl(userId(req), url, sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  /** Imports an uploaded `.ics` file into local Meetings (idempotent by UID). */
+  async importIcs(req: Request, res: Response): Promise<void> {
+    const { content, sinceIso, untilIso } = req.body as ImportIcsFileInput;
+    const result = await calendarService.importIcs(userId(req), content, sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  /** Ingests a PROVIDED transcript (.vtt / plain text) → analysis (consent-gated). */
+  async ingestTranscript(req: Request, res: Response): Promise<void> {
+    const meeting = await meetingService.ingestProvidedTranscript(
+      userId(req),
+      req.params.id!,
+      req.body as ProvidedTranscriptInput,
+    );
+    res.status(200).json({ data: { meeting } });
   },
 
   // ── Scheduler tick (invoked; no always-on timer) ────────────────────────────

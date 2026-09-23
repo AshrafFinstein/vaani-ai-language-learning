@@ -11,6 +11,7 @@ import {
   type MeetingSummaryDTO,
   type MeetingSummaryListDTO,
   type ParticipantDTO,
+  type ProvidedTranscriptInput,
   type QuestionDTO,
   type RecordingAction,
   type RecordingSessionDTO,
@@ -22,6 +23,7 @@ import {
 import {
   createMeetingAnalysisProvider,
   createMeetingTranscriptProvider,
+  parseVtt,
   type KnownParticipant,
   type TranscriptSegmentInput,
 } from '@vaani/meeting';
@@ -529,6 +531,92 @@ export const meetingService = {
           data: {
             meetingId,
             language: languageCode ?? 'en',
+            segments: {
+              create: segments.map((s, i) => ({
+                speakerLabel: s.speakerLabel,
+                text: s.text,
+                startMs: s.startMs,
+                endMs: s.endMs,
+                ordinal: i,
+              })),
+            },
+          },
+        });
+      });
+    }
+
+    return toDetailDTO(await getOwnedMeeting(userId, meetingId));
+  },
+
+  /**
+   * Feeds a PROVIDED transcript (Teams `.vtt` or plain text) straight into the analysis
+   * pipeline — the AVD-friendly complement to {@link transcribeProvidedAudio}. No STT is
+   * run; the caller supplies the transcript. Consent is enforced identically: the meeting
+   * must have transcription enabled AND transcript consent granted (CLAUDE.md §13). The
+   * analyzer only ever sees the supplied evidence — it never invents content (§15).
+   */
+  async ingestProvidedTranscript(
+    userId: string,
+    meetingId: string,
+    input: ProvidedTranscriptInput,
+  ): Promise<MeetingDetail> {
+    const meeting = await getOwnedMeeting(userId, meetingId);
+
+    if (!meeting.transcriptionEnabled) {
+      throw ApiException.forbidden('Transcription is not enabled for this meeting');
+    }
+    if (!meeting.recording?.transcriptConsent) {
+      throw ApiException.forbidden('Transcript consent is required to ingest a meeting transcript');
+    }
+
+    // Sensitive action: ingesting a provided transcript introduces transcript content.
+    // Log a reference only (never the transcript text).
+    await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', meetingId, {
+      via: 'provided-transcript',
+    });
+
+    const isVtt =
+      input.format === 'vtt' ||
+      (input.format === 'auto' && /^\uFEFF?\s*WEBVTT/i.test(input.content));
+
+    let segments: TranscriptSegmentInput[];
+    if (isVtt) {
+      const parsed = parseVtt(input.content);
+      if (parsed.length === 0) {
+        throw ApiException.badRequest('No transcript segments could be parsed from the .vtt content');
+      }
+      segments = parsed.map((s) => ({
+        speakerLabel: s.speakerLabel,
+        text: s.text,
+        startMs: s.startMs,
+        endMs: s.endMs,
+      }));
+    } else {
+      const text = input.content.trim();
+      if (!text) throw ApiException.badRequest('The provided transcript is empty');
+      // Plain text has no diarization/timing — a single unattributed segment (never
+      // a fabricated speaker identity). The default speaker label ties to the analyzer.
+      segments = [
+        {
+          speakerLabel: meeting.participants[0]?.speakerLabel ?? 'Speaker 1',
+          text,
+          startMs: 0,
+          endMs: 0,
+        },
+      ];
+    }
+
+    const language = input.languageCode ?? 'en';
+    if (meeting.aiAnalysisEnabled) {
+      await runAnalysis(meeting, { segments, language });
+    } else {
+      // Persist just the transcript when analysis is disabled, replacing any prior run.
+      await prisma.$transaction(async (tx) => {
+        await tx.transcript.deleteMany({ where: { meetingId } });
+        await tx.transcript.create({
+          data: {
+            meetingId,
+            language,
             segments: {
               create: segments.map((s, i) => ({
                 speakerLabel: s.speakerLabel,

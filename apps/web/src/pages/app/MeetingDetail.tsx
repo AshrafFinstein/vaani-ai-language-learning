@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useMeeting } from '@/features/meeting/useMeetings';
 import { RecordingControls } from '@/features/meeting/components/RecordingControls';
 import { MeetingAnalysis } from '@/features/meeting/components/MeetingAnalysis';
+import { MeetingUpload } from '@/features/meeting/components/MeetingUpload';
 import { PrivacyPanel } from '@/features/meeting/components/PrivacyPanel';
 
 type Tab = 'analysis' | 'recording' | 'privacy';
@@ -97,7 +98,10 @@ export default function MeetingDetailPage() {
 
       {tab === 'analysis' && <MeetingAnalysis meeting={meeting} />}
       {tab === 'recording' && (
-        <RecordingControls meetingId={meeting.id} recording={meeting.recording} />
+        <div className="space-y-5">
+          <RecordingControls meetingId={meeting.id} recording={meeting.recording} />
+          <MeetingUpload meeting={meeting} />
+        </div>
       )}
       {tab === 'privacy' && <PrivacyPanel meetingId={meeting.id} />}
     </div>

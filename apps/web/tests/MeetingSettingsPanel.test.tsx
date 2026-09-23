@@ -6,10 +6,13 @@ import { renderWithProviders } from './test-utils';
 
 const useMeetingSettingsMock = vi.fn();
 const useCalendarStatusMock = vi.fn();
+const idleMutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isSuccess: false, error: null };
 vi.mock('@/features/meeting/useMeetings', () => ({
   useMeetingSettings: () => useMeetingSettingsMock(),
   useCalendarStatus: () => useCalendarStatusMock(),
-  useUpdateMeetingSettings: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false }),
+  useUpdateMeetingSettings: () => idleMutation,
+  useSetIcsCalendar: () => idleMutation,
+  useImportIcs: () => idleMutation,
 }));
 
 const SETTINGS: MeetingPrivacySettings = {
@@ -63,5 +66,25 @@ describe('MeetingSettingsPanel', () => {
     });
     renderWithProviders(<MeetingSettingsPanel />);
     expect(screen.getByText(/microsoft 365 \(outlook\)/i)).toBeInTheDocument();
+  });
+
+  it('renders the published ICS URL field and the .ics import control', () => {
+    useMeetingSettingsMock.mockReturnValue({ data: SETTINGS });
+    useCalendarStatusMock.mockReturnValue({
+      data: { provider: 'mock', connected: false, readOnly: true } as CalendarStatusDTO,
+    });
+    renderWithProviders(<MeetingSettingsPanel />);
+    expect(screen.getByLabelText(/published ICS feed URL/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/import \.ics file/i)).toBeInTheDocument();
+    expect(screen.getByText(/save & sync/i)).toBeInTheDocument();
+  });
+
+  it('reflects a connected published ICS feed', () => {
+    useMeetingSettingsMock.mockReturnValue({ data: SETTINGS });
+    useCalendarStatusMock.mockReturnValue({
+      data: { provider: 'ics', connected: true, readOnly: true } as CalendarStatusDTO,
+    });
+    renderWithProviders(<MeetingSettingsPanel />);
+    expect(screen.getByText(/connected via a published ICS feed/i)).toBeInTheDocument();
   });
 });

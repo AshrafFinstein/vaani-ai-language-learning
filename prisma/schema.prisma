@@ -512,6 +512,9 @@ model MeetingSettings {
   captureSpeaker   Boolean  @default(false)
   /// Ask the user before any local capture starts (privacy; default on = never covert).
   askBeforeCapture Boolean  @default(true)
+  /// Admin-free AVD path: the user's published (read-only) Outlook/Teams ICS feed URL.
+  /// When set, calendar sync prefers this over the env-level ICS_CALENDAR_URL / Graph.
+  icsCalendarUrl   String?
   /// AI extraction toggles for the analysis pipeline.
   extractSummary     Boolean @default(true)
   extractDecisions   Boolean @default(true)

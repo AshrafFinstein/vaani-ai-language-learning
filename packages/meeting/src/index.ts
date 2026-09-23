@@ -16,6 +16,13 @@ export {
   type OutlookCalendarConfig,
 } from './calendar/outlook-calendar.js';
 export {
+  IcsCalendarProvider,
+  parseIcsContent,
+  normalizeIcsUrl,
+  type IcsCalendarConfig,
+} from './calendar/ics-calendar.js';
+export { parseIcs } from './calendar/ics-parser.js';
+export {
   createCalendarProvider,
   calendarProviderStatus,
   type CalendarProviderEnv,
