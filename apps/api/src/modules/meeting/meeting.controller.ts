@@ -78,12 +78,13 @@ export const meetingController = {
 
   /** Runs real STT on PROVIDED meeting audio and feeds the analysis pipeline. */
   async transcribeAudio(req: Request, res: Response): Promise<void> {
-    const { audio, languageCode } = req.body as MeetingTranscribeAudioInput;
+    const { audio, languageCode, mimeType } = req.body as MeetingTranscribeAudioInput;
     const meeting = await meetingService.transcribeProvidedAudio(
       userId(req),
       req.params.id!,
       audio,
       languageCode,
+      mimeType,
     );
     res.status(200).json({ data: { meeting } });
   },

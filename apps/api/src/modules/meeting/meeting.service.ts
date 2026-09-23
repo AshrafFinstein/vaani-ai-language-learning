@@ -34,7 +34,7 @@ import { ApiException } from '../../lib/errors.js';
 import { recordActivity } from '../../lib/activity.js';
 import { recordAudit } from '../../lib/audit.js';
 import { getSttProvider } from '../../lib/ai.js';
-import { decodeAudio } from '../speech/speech.service.js';
+import { decodeAudio, resolveTranscribeOptions } from '../speech/speech.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { canTransition } from './meeting.lifecycle.js';
 
@@ -495,6 +495,7 @@ export const meetingService = {
     meetingId: string,
     audio: string,
     languageCode?: string,
+    mimeType?: string,
   ): Promise<MeetingDetail> {
     const meeting = await getOwnedMeeting(userId, meetingId);
 
@@ -505,6 +506,11 @@ export const meetingService = {
       throw ApiException.forbidden('Transcript consent is required to transcribe meeting audio');
     }
 
+    // Resolve + validate the container (explicit mimeType or the data-URL prefix) BEFORE any
+    // work, so a clearly unsupported format is a clean 422. The hint carries the real format
+    // through to Whisper so an .mp4 recording is detected correctly (never mislabelled .webm).
+    const sttOptions = resolveTranscribeOptions(audio, mimeType);
+
     // Sensitive action: transcription of provided audio produces transcript content.
     // Log a reference only (never the audio or the resulting text).
     await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', meetingId, {
@@ -512,7 +518,7 @@ export const meetingService = {
     });
 
     const stt = getSttProvider();
-    const { text } = await stt.transcribe(decodeAudio(audio), languageCode);
+    const { text } = await stt.transcribe(decodeAudio(audio), languageCode, sttOptions);
     if (!text.trim()) {
       throw ApiException.badRequest('No speech could be transcribed from the provided audio');
     }

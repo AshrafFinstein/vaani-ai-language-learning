@@ -11,8 +11,8 @@ export const speechController = {
   /** POST /api/speech/transcribe — real STT on provided audio (mock by default). */
   async transcribe(req: Request, res: Response): Promise<void> {
     requireAuth(req);
-    const { audio, languageCode } = req.body as TranscribeInput;
-    const result = await speechService.transcribe(audio, languageCode);
+    const { audio, languageCode, mimeType } = req.body as TranscribeInput;
+    const result = await speechService.transcribe(audio, languageCode, mimeType);
     res.status(200).json({ data: result });
   },
 

@@ -3,6 +3,7 @@ import type {
   SpeechToTextResult,
   TextToSpeechProvider,
   TextToSpeechResult,
+  TranscribeOptions,
 } from './types.js';
 import { fetchWithRetry, type HttpHardeningOptions } from './http.js';
 
@@ -35,6 +36,52 @@ const FORMAT_MIME: Record<string, string> = {
   pcm: 'audio/pcm',
 };
 
+/** Whisper-supported upload filenames keyed by container extension. */
+const EXT_FILENAME: Record<string, string> = {
+  webm: 'audio.webm',
+  mp4: 'audio.mp4',
+  m4a: 'audio.m4a',
+  mp3: 'audio.mp3',
+  mpga: 'audio.mp3',
+  wav: 'audio.wav',
+  mpeg: 'audio.mp3',
+  ogg: 'audio.ogg',
+  oga: 'audio.ogg',
+  flac: 'audio.flac',
+};
+
+/** MIME type → Whisper upload filename. Covers the common recorder/container types. */
+const MIME_FILENAME: Record<string, string> = {
+  'audio/webm': 'audio.webm',
+  'video/webm': 'audio.webm',
+  'video/mp4': 'audio.mp4',
+  'audio/mp4': 'audio.m4a',
+  'audio/x-m4a': 'audio.m4a',
+  'audio/m4a': 'audio.m4a',
+  'audio/mpeg': 'audio.mp3',
+  'audio/mp3': 'audio.mp3',
+  'audio/wav': 'audio.wav',
+  'audio/x-wav': 'audio.wav',
+  'audio/wave': 'audio.wav',
+  'audio/ogg': 'audio.ogg',
+  'audio/flac': 'audio.flac',
+  'audio/x-flac': 'audio.flac',
+};
+
+/**
+ * Derives the Whisper upload filename from an optional format hint. Whisper detects the
+ * container from the filename EXTENSION, so we map the caller's real filename/MIME to a
+ * correct `audio.<ext>`. Prefers the filename's own extension, then the MIME type, and
+ * defaults to `audio.webm` when neither is recognised (backward compatible).
+ */
+export function whisperUploadFilename(options?: TranscribeOptions): string {
+  const ext = options?.filename?.split('.').pop()?.toLowerCase();
+  if (ext && EXT_FILENAME[ext]) return EXT_FILENAME[ext];
+  const mime = options?.mimeType?.trim().toLowerCase().split(';')[0];
+  if (mime && MIME_FILENAME[mime]) return MIME_FILENAME[mime];
+  return 'audio.webm';
+}
+
 /**
  * Real speech-to-text via OpenAI Whisper (`POST {baseUrl}/audio/transcriptions`,
  * multipart form-data). Implements {@link SpeechToTextProvider} so feature code
@@ -54,10 +101,15 @@ export class OpenAISttProvider implements SpeechToTextProvider {
     this.model = config.model ?? 'whisper-1';
   }
 
-  async transcribe(audio: ArrayBuffer, languageCode?: string): Promise<SpeechToTextResult> {
+  async transcribe(
+    audio: ArrayBuffer,
+    languageCode?: string,
+    options?: TranscribeOptions,
+  ): Promise<SpeechToTextResult> {
     const form = new FormData();
-    // Whisper accepts common audio containers; the filename hints the type only.
-    form.append('file', new Blob([audio]), 'audio.webm');
+    // Whisper detects the container from the upload filename EXTENSION, so we derive a
+    // correct `audio.<ext>` from the caller's format hint (defaults to audio.webm).
+    form.append('file', new Blob([audio]), whisperUploadFilename(options));
     form.append('model', this.model);
     // response_format=verbose_json surfaces language/segments when available.
     form.append('response_format', 'json');

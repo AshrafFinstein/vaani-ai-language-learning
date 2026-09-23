@@ -7,14 +7,50 @@ import { z } from 'zod';
  * convention — no multipart plumbing is introduced.
  */
 
-/** Accepts raw base64 or a data-URL (`data:audio/webm;base64,...`). */
+/**
+ * Accepts raw base64 or a data-URL (`data:audio/webm;base64,...` or `data:video/mp4;base64,...`).
+ * Meeting recordings are often `video/*` containers (e.g. an `.mp4` screen recording), so both
+ * `audio/*` and `video/*` data-URLs are permitted; the concrete MIME is validated where used.
+ */
 const base64Audio = z
   .string()
   .min(1, 'Audio is required')
   .max(20_000_000, 'Audio is too large')
   .refine(
-    (v) => /^data:audio\/[\w.+-]+;base64,/.test(v) || /^[A-Za-z0-9+/=\s]+$/.test(v),
-    'Audio must be base64 or a base64 audio data-URL',
+    (v) =>
+      /^data:(?:audio|video)\/[\w.+-]+;base64,/.test(v) || /^[A-Za-z0-9+/=\s]+$/.test(v),
+    'Audio must be base64 or a base64 audio/video data-URL',
+  );
+
+/**
+ * Supported STT container MIME types. Whisper detects the container from the upload filename,
+ * so we carry the real format through; anything outside this allow-list is rejected (422) rather
+ * than silently mis-transcribed. `video/mp4` is included because meeting recordings are common.
+ */
+export const SUPPORTED_TRANSCRIBE_MIME_TYPES = [
+  'audio/webm',
+  'video/webm',
+  'video/mp4',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/m4a',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+  'audio/ogg',
+  'audio/flac',
+  'audio/x-flac',
+] as const;
+
+/** An explicit MIME hint for the recording's real format (validated against the allow-list). */
+const transcribeMimeType = z
+  .string()
+  .trim()
+  .refine(
+    (v) => (SUPPORTED_TRANSCRIBE_MIME_TYPES as readonly string[]).includes(v.toLowerCase()),
+    'Unsupported audio format',
   );
 
 export const TranscribeInput = z.object({
@@ -22,6 +58,12 @@ export const TranscribeInput = z.object({
   audio: base64Audio,
   /** Optional BCP-47/ISO language hint, e.g. "en", "es". */
   languageCode: z.string().min(2).max(10).optional(),
+  /**
+   * Optional explicit MIME type of the recording (e.g. `video/mp4`). When omitted, the server
+   * derives it from an `audio`/`video` data-URL prefix if present. Drives the Whisper upload
+   * filename so the container is detected correctly.
+   */
+  mimeType: transcribeMimeType.optional(),
 });
 export type TranscribeInput = z.infer<typeof TranscribeInput>;
 
@@ -55,5 +97,11 @@ export type SynthesizeResult = z.infer<typeof SynthesizeResult>;
 export const MeetingTranscribeAudioInput = z.object({
   audio: base64Audio,
   languageCode: z.string().min(2).max(10).optional(),
+  /**
+   * Optional explicit MIME type of the recording (e.g. `video/mp4`). When omitted, the server
+   * derives it from an `audio`/`video` data-URL prefix if present. Carried through to the STT
+   * provider so Whisper detects the real container from the upload filename extension.
+   */
+  mimeType: transcribeMimeType.optional(),
 });
 export type MeetingTranscribeAudioInput = z.infer<typeof MeetingTranscribeAudioInput>;

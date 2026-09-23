@@ -138,9 +138,27 @@ export interface SpeechToTextResult {
   confidence: number;
 }
 
+/**
+ * Optional format hint for {@link SpeechToTextProvider.transcribe}. OpenAI Whisper detects
+ * the audio container from the upload FILENAME extension, so real recordings that are not
+ * `.webm` (e.g. an `.mp4` meeting recording) must carry their real format through or they
+ * can be misread/rejected. Both fields are optional and purely advisory — the Mock ignores
+ * them, and the real provider falls back to `audio.webm` when neither is recognised.
+ */
+export interface TranscribeOptions {
+  /** Original filename, e.g. `recording.mp4`; its extension hints the container. */
+  filename?: string;
+  /** MIME type, e.g. `video/mp4`, `audio/mpeg`; used when no usable filename is given. */
+  mimeType?: string;
+}
+
 export interface SpeechToTextProvider {
   readonly name: string;
-  transcribe(audio: ArrayBuffer, languageCode?: string): Promise<SpeechToTextResult>;
+  transcribe(
+    audio: ArrayBuffer,
+    languageCode?: string,
+    options?: TranscribeOptions,
+  ): Promise<SpeechToTextResult>;
 }
 
 export interface TextToSpeechResult {

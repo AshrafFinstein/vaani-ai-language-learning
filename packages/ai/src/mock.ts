@@ -26,6 +26,7 @@ import type {
   SpeechToTextResult,
   TextToSpeechProvider,
   TextToSpeechResult,
+  TranscribeOptions,
 } from './types.js';
 
 /**
@@ -396,7 +397,11 @@ export class MockAIProvider implements AIProvider {
 
 export class MockSttProvider implements SpeechToTextProvider {
   readonly name = 'mock';
-  async transcribe(_audio: ArrayBuffer, _languageCode?: string): Promise<SpeechToTextResult> {
+  async transcribe(
+    _audio: ArrayBuffer,
+    _languageCode?: string,
+    _options?: TranscribeOptions,
+  ): Promise<SpeechToTextResult> {
     return { text: '(mock transcription)', confidence: 0.9 };
   }
 }
