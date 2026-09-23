@@ -1,10 +1,10 @@
 import {
   createCalendarProvider,
   calendarProviderStatus,
-  createCaptureProvider,
+  createLocalAudioCaptureProvider,
   type CalendarProvider,
   type CalendarProviderEnv,
-  type MeetingCaptureProvider,
+  type LocalAudioCaptureProvider,
 } from '@vaani/meeting';
 import type { CalendarProviderKind } from '@vaani/types';
 import { env } from '../env.js';
@@ -32,10 +32,10 @@ export function getCalendarStatus(): { provider: CalendarProviderKind; connected
   return calendarProviderStatus(calendarEnv());
 }
 
-let captureProvider: MeetingCaptureProvider | undefined;
+let captureProvider: LocalAudioCaptureProvider | undefined;
 
-/** The Local/AVD capture provider (state-only; real capture deferred). */
-export function getCaptureProvider(): MeetingCaptureProvider {
-  if (!captureProvider) captureProvider = createCaptureProvider();
+/** The Local/AVD audio capture provider (unsupported on the server; real capture deferred). */
+export function getCaptureProvider(): LocalAudioCaptureProvider {
+  if (!captureProvider) captureProvider = createLocalAudioCaptureProvider();
   return captureProvider;
 }

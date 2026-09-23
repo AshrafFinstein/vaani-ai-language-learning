@@ -113,6 +113,18 @@ export const meetingController = {
 
   /** Reports whether real local capture is available in this environment. */
   async captureCapability(_req: Request, res: Response): Promise<void> {
-    res.status(200).json({ data: { capability: getCaptureProvider().capability() } });
+    const provider = getCaptureProvider();
+    const audioSupported = provider.isSupported();
+    res.status(200).json({
+      data: {
+        capability: {
+          audioSupported,
+          state: provider.getState(),
+          reason: audioSupported
+            ? undefined
+            : 'Live local/AVD audio capture is deferred in this environment. Provide already-recorded audio to the transcribe endpoint for real STT.',
+        },
+      },
+    });
   },
 };

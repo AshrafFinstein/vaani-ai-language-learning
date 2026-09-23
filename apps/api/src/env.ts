@@ -45,6 +45,25 @@ const EnvSchema = z.object({
   MS_GRAPH_BASE_URL: z.string().default('https://graph.microsoft.com/v1.0'),
   // Default reminder window (minutes before start) used when a user has no setting.
   MEETING_REMINDER_MINUTES: z.coerce.number().int().min(0).max(1440).default(10),
+
+  // ── Meeting capture (Microsoft Graph). Disabled by default; no creds needed for dev. ──
+  MEETING_CAPTURE_PROVIDER: z.string().optional(), // 'graph' | 'local' | 'disabled'
+  MEETING_CAPTURE_GRAPH: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  AZURE_TENANT_ID: z.string().optional(),
+  AZURE_CLIENT_ID: z.string().optional(),
+  AZURE_CLIENT_SECRET: z.string().optional(),
+  GRAPH_BASE_URL: z.string().optional(),
+
+  // ── Optional web research (Apify) — independent, off by default. ──
+  APIFY_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  APIFY_API_TOKEN: z.string().optional(),
+  APIFY_ACTOR_ID: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
