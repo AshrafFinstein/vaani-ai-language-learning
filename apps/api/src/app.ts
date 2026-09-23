@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { corsOrigins } from './env.js';
 import { apiLimiter } from './middleware/rate-limit.js';
+import { requestLogger } from './middleware/request-logger.js';
 import { apiRouter } from './routes.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
@@ -34,6 +35,11 @@ export function createApp(): Express {
     isAudioBodyRoute(req) ? audioJson(req, res, next) : standardJson(req, res, next),
   );
   app.use(cookieParser());
+
+  // Structured request logging (skipped under test to keep the suite output clean).
+  if (process.env.NODE_ENV !== 'test') {
+    app.use(requestLogger);
+  }
 
   app.use('/api', apiLimiter, apiRouter);
 

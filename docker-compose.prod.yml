@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Production-style compose: web (nginx SPA + /api proxy) → api (Express) → db.
+# Secrets are provided via an env file — copy .env.example to .env.prod and fill
+# in REAL values there (never commit it). Run:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Apply migrations once the db is healthy (see docs/DEPLOYMENT.md):
+#   docker compose -f docker-compose.prod.yml run --rm api npx prisma migrate deploy --schema prisma/schema.prisma
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vaani}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your env file}
+      POSTGRES_DB: ${POSTGRES_DB:-vaani}
+    volumes:
+      - vaani-pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-vaani} -d ${POSTGRES_DB:-vaani}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      # DATABASE_URL points at the compose `db` service by default; override in env.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://vaani:${POSTGRES_PASSWORD}@db:5432/vaani?schema=public}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (>=16 chars) in your env file}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      # AI/speech default to the offline mock; set AI_PROVIDER=openai + OPENAI_API_KEY to enable real AI.
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      SPEECH_PROVIDER: ${SPEECH_PROVIDER:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      AI_FALLBACK_TO_MOCK: ${AI_FALLBACK_TO_MOCK:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Liveness probe hits the dependency-free /health endpoint.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${WEB_PORT:-80}:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost/']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  vaani-pgdata-prod:

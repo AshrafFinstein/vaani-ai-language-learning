@@ -13,11 +13,25 @@ import { flashcardRouter } from './modules/flashcard/flashcard.routes.js';
 import { exploreRouter } from './modules/explore/explore.routes.js';
 import { progressRouter } from './modules/progress/progress.routes.js';
 import { speechRouter } from './modules/speech/speech.routes.js';
+import { prisma } from './prisma.js';
 
 export const apiRouter = Router();
 
+// Liveness: the process is up and serving. Cheap, no dependencies — used by the
+// container/orchestrator healthcheck.
 apiRouter.get('/health', (_req, res) => {
   res.json({ data: { status: 'ok' } });
+});
+
+// Readiness: the app can serve traffic, including its database dependency. Returns
+// 503 when the DB is unreachable so load balancers hold traffic until it recovers.
+apiRouter.get('/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ data: { status: 'ready' } });
+  } catch {
+    res.status(503).json({ error: { code: 'INTERNAL', message: 'Not ready' } });
+  }
 });
 
 apiRouter.use('/auth', authRouter);

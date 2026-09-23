@@ -27,6 +27,7 @@ import type { MeetingDetailDTO as MeetingDetail } from '@vaani/types';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { recordActivity } from '../../lib/activity.js';
+import { recordAudit } from '../../lib/audit.js';
 import { getSttProvider } from '../../lib/ai.js';
 import { decodeAudio } from '../speech/speech.service.js';
 
@@ -234,7 +235,15 @@ export const meetingService = {
   },
 
   async detail(userId: string, id: string): Promise<MeetingDetailDTO> {
-    return toDetailDTO(await getOwnedMeeting(userId, id));
+    const meeting = await getOwnedMeeting(userId, id);
+    // Audit *transcript access*: only when a transcript actually exists and is being
+    // returned. We log a reference (segment count), never the transcript text itself.
+    if (meeting.transcript) {
+      await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', id, {
+        segmentCount: meeting.transcript.segments.length,
+      });
+    }
+    return toDetailDTO(meeting);
   },
 
   /**
@@ -273,6 +282,10 @@ export const meetingService = {
         startedAt: new Date(),
         endedAt: null,
       },
+    });
+    // Sensitive action: record who started recording which meeting (reference only).
+    await recordAudit(userId, 'RECORDING_START', 'MEETING', meetingId, {
+      transcriptConsent: input.transcriptConsent,
     });
     return toRecordingDTO(recording);
   },
@@ -323,6 +336,8 @@ export const meetingService = {
       where: { meetingId },
       data: { state: 'STOPPED', endedAt, durationSeconds },
     });
+    // Sensitive action: record the stop + duration (a reference metric, not content).
+    await recordAudit(userId, 'RECORDING_STOP', 'MEETING', meetingId, { durationSeconds });
 
     if (meeting.aiAnalysisEnabled) {
       await runAnalysis(meeting);
@@ -364,12 +379,15 @@ export const meetingService = {
   async deleteRecording(userId: string, meetingId: string): Promise<void> {
     await getOwnedMeeting(userId, meetingId);
     await prisma.recordingSession.deleteMany({ where: { meetingId } });
+    // Sensitive action: record the deletion for retention/forensic accountability.
+    await recordAudit(userId, 'RECORDING_DELETE', 'RECORDING', meetingId);
   },
 
   /** Deletes the stored transcript (and its segments) for a meeting (privacy control). */
   async deleteTranscript(userId: string, meetingId: string): Promise<void> {
     await getOwnedMeeting(userId, meetingId);
     await prisma.transcript.deleteMany({ where: { meetingId } });
+    await recordAudit(userId, 'TRANSCRIPT_DELETE', 'TRANSCRIPT', meetingId);
   },
 
   /**
@@ -393,6 +411,12 @@ export const meetingService = {
     if (!meeting.recording?.transcriptConsent) {
       throw ApiException.forbidden('Transcript consent is required to transcribe meeting audio');
     }
+
+    // Sensitive action: transcription of provided audio produces transcript content.
+    // Log a reference only (never the audio or the resulting text).
+    await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', meetingId, {
+      via: 'transcribe',
+    });
 
     const stt = getSttProvider();
     const { text } = await stt.transcribe(decodeAudio(audio), languageCode);

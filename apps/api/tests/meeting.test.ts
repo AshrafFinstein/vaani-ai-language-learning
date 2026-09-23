@@ -57,6 +57,7 @@ vi.mock('../src/prisma.js', () => {
       deleteMany: async () => ({ count: 1 }),
     },
     transcript: { deleteMany: async () => ({ count: 0 }), create: async () => ({}) },
+    auditLog: { create: async () => ({}) },
     meetingSummary: { deleteMany: async () => ({ count: 0 }), create: async () => ({}) },
     meetingDecision: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
     actionItem: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
@@ -157,5 +158,28 @@ describe('POST /api/meetings/:id/transcribe (real STT on provided audio)', () =>
       .set('Cookie', COOKIE)
       .send({ audio: AUDIO });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('Data-deletion / retention (privacy controls)', () => {
+  it('requires authentication to delete a recording', async () => {
+    const res = await request(app).delete('/api/meetings/m_1/recording');
+    expect(res.status).toBe(401);
+  });
+
+  it('deletes the stored recording for a meeting the user owns', async () => {
+    const res = await request(app)
+      .delete('/api/meetings/m_1/recording')
+      .set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ deleted: true });
+  });
+
+  it('deletes the stored transcript for a meeting the user owns', async () => {
+    const res = await request(app)
+      .delete('/api/meetings/m_1/transcript')
+      .set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ deleted: true });
   });
 });

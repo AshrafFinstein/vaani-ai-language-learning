@@ -87,9 +87,45 @@ This module is built to be privacy-first and **consent-gated**, per `CLAUDE.md` 
   `GET/PATCH /api/meetings/settings`.
 - **Deletion controls.** `DELETE /api/meetings/:id/recording` and `DELETE /api/meetings/:id/transcript`
   let a user remove stored recording-session metadata and the transcript (+ its segments) for a
-  meeting they own.
+  meeting they own. Both re-check ownership (`getOwnedMeeting` → 404 otherwise) and write an audit row.
 
 See [`MEETING_ARCHITECTURE.md`](./MEETING_ARCHITECTURE.md) for the full module design.
+
+## Audit logging (Phase 11)
+
+Sensitive actions leave an append-only trail in the `AuditLog` model (`userId`, `action`,
+`targetType`, `targetId`, optional small `metadata`, `createdAt`). The `recordAudit` helper
+(`lib/audit.ts`) is wired into the meeting service at: **recording start** (`RECORDING_START`),
+**recording stop** (`RECORDING_STOP`, with a `durationSeconds` reference), **transcript access**
+(`TRANSCRIPT_ACCESS` on detail-with-transcript and on `transcribe`), and **deletion**
+(`RECORDING_DELETE`, `TRANSCRIPT_DELETE`). We log **references only** — never secrets, tokens,
+audio, or transcript content (`CLAUDE.md` §10). Auditing is best-effort: a write failure never
+breaks the underlying action, and audit rows are only written **after** the ownership check
+passes, so a denied (404) request records nothing. Rows cascade-delete with the owning user.
+
+## Data deletion & retention
+
+- **On-demand deletion.** Users delete their recording metadata and transcripts via the two
+  ownership-checked, audited `DELETE` endpoints above; segments cascade with the transcript.
+- **Retention window.** `MeetingSettings.retentionDays` (default 30, validated 1–3650) expresses
+  the per-user retention preference for meeting artifacts.
+- **Cascade on account/resource removal.** All user-scoped models set `onDelete: Cascade` on the
+  `User`/parent relation, so removing a user (or a meeting) removes their conversations, meetings,
+  recordings, transcripts, decks, reviews, activity, achievements, and audit rows.
+- **Backups.** Operational backup/restore via `pg_dump`/`pg_restore` is documented in
+  [`DEPLOYMENT.md`](./DEPLOYMENT.md); scheduling + retention of backups is an ops policy.
+
+## Runtime hardening & operations (Phase 12)
+
+- **Structured request logging** (`middleware/request-logger.ts`): one line per request
+  (method, path, status, duration); JSON in prod, skipped for `/health`, `/ready`, and under test.
+  It logs no bodies, cookies, or tokens.
+- **Liveness/readiness**: `GET /api/health` (dependency-free) and `GET /api/ready` (`SELECT 1`,
+  returns 503 when the DB is down) back the container/orchestrator probes.
+- **Graceful shutdown** (`index.ts`): drains in-flight requests on `SIGINT`/`SIGTERM`, then
+  disconnects Prisma.
+- **Images carry no secrets**: multi-stage Dockerfiles + `.dockerignore` exclude `.env`; all
+  config is injected via env at runtime (`docker-compose.prod.yml` uses env-file placeholders).
 
 ## Summary checklist
 
@@ -108,8 +144,18 @@ See [`MEETING_ARCHITECTURE.md`](./MEETING_ARCHITECTURE.md) for the full module d
 | Env validated at boot, fail-fast | ✅ |
 | AI keys backend-only | ✅ |
 | Meeting consent-gating + retention + delete | ✅ |
+| Audit logging of sensitive actions (references only) | ✅ |
+| Data-deletion endpoints (recording/transcript), ownership-checked | ✅ |
+| Cascade delete of user-scoped data | ✅ |
+| Structured request logging (no secrets/bodies) | ✅ |
+| Liveness `/health` + readiness `/ready` | ✅ |
+| Graceful shutdown | ✅ |
+| No secrets in Docker images / build context | ✅ |
+| Cross-user AuthZ isolation test-covered (chat, meetings, debates, photos, decks) | ✅ |
 | CSRF token (double-submit) | ⏳ relies on SameSite=Lax today |
 | OAuth / email verification / password reset | ⏳ stubbed |
+| Live Teams/AVD capture | ⏳ deferred (CLAUDE.md §14) |
+| TLS termination / ingress | ⏳ front with a TLS proxy in prod |
 
 ## Related docs
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`API_DESIGN.md`](./API_DESIGN.md) ·

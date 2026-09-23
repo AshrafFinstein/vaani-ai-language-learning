@@ -186,6 +186,7 @@ model User {
   flashcardReviews  FlashcardReview[]
   activityEvents    ActivityEvent[]
   achievements      UserAchievement[]
+  auditLogs         AuditLog[]
 
   @@index([email])
 }
@@ -738,6 +739,28 @@ model Achievement {
   createdAt   DateTime @default(now())
 
   users UserAchievement[]
+}
+
+// ── Audit logging (Phase 11 — security) ──────────────────────────────────────
+
+/// An append-only audit record of a *sensitive* action (recording start/stop,
+/// transcript access, and data deletion). It stores only *references* — an action
+/// verb, the target type, and the target id — never secrets or transcript content
+/// (CLAUDE.md §10). `metadata` may hold small non-sensitive context (e.g. a state
+/// transition), never payloads. Retained for security/forensic review; deleting the
+/// owning user cascades their audit rows.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String // e.g. RECORDING_START, TRANSCRIPT_ACCESS, RECORDING_DELETE
+  targetType String // e.g. MEETING, TRANSCRIPT, RECORDING
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
 
 /// Join row recording that a learner unlocked an achievement, and when.

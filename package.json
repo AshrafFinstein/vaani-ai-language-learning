@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "npm run test --workspace @vaani/meeting && npm run test --workspace @vaani/api && npm run test --workspace @vaani/web",
+    "e2e": "npm run test:e2e --workspace @vaani/web",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
