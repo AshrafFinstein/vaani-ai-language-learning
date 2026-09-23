@@ -1,4 +1,7 @@
 import type {
+  CalendarStatusDTO,
+  CalendarSyncInput,
+  CalendarSyncResultDTO,
   MeetingDetailDTO,
   MeetingDTO,
   MeetingPrivacySettings,
@@ -6,6 +9,7 @@ import type {
   RecordingControlInput,
   RecordingSessionDTO,
   ScheduleMeetingInput,
+  SchedulerTickResultDTO,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
@@ -27,4 +31,10 @@ export const meetingApi = {
     api.delete<{ deleted: boolean }>(`/api/meetings/${id}/recording`),
   deleteTranscript: (id: string) =>
     api.delete<{ deleted: boolean }>(`/api/meetings/${id}/transcript`),
+  // ── Calendar sync (read-only) + scheduler tick ──────────────────────────────
+  calendarStatus: () => api.get<{ status: CalendarStatusDTO }>('/api/meetings/calendar/status'),
+  calendarSync: (input: CalendarSyncInput = {}) =>
+    api.post<{ result: CalendarSyncResultDTO }>('/api/meetings/calendar/sync', input),
+  schedulerTick: () =>
+    api.post<{ result: SchedulerTickResultDTO }>('/api/meetings/scheduler/tick', {}),
 };

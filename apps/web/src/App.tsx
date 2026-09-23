@@ -16,6 +16,8 @@ import SentencePage from '@/pages/app/Sentence';
 import WordPage from '@/pages/app/Word';
 import CallPage from '@/pages/app/Call';
 import MeetingsPage from '@/pages/app/Meetings';
+import MeetingsTodayPage from '@/pages/app/MeetingsToday';
+import MeetingSettingsPage from '@/pages/app/MeetingSettings';
 import MeetingSchedulePage from '@/pages/app/MeetingSchedule';
 import MeetingDetailPage from '@/pages/app/MeetingDetail';
 import CharactersPage from '@/pages/app/Characters';
@@ -79,6 +81,8 @@ export default function App() {
         <Route path="word" element={<WordPage />} />
         <Route path="call" element={<CallPage />} />
         <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/today" element={<MeetingsTodayPage />} />
+        <Route path="meetings/settings" element={<MeetingSettingsPage />} />
         <Route path="meetings/schedule" element={<MeetingSchedulePage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />
         <Route path="characters" element={<CharactersPage />} />

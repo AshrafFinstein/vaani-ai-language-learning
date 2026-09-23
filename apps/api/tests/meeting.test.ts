@@ -15,6 +15,13 @@ const state = {
     transcriptionEnabled: false,
     aiAnalysisEnabled: true,
     analysisStatus: 'PENDING',
+    status: 'SCHEDULED',
+    teamsMeetingId: null,
+    joinUrl: null,
+    externalCalendarId: null,
+    notifiedAt: null,
+    startedAt: null,
+    endedAt: null,
     createdAt: new Date('2026-09-22T00:00:00Z'),
     updatedAt: new Date('2026-09-22T00:00:00Z'),
     participants: [
@@ -33,6 +40,7 @@ const state = {
     summary: null,
     decisions: [],
     actionItems: [],
+    questions: [],
     transcript: null,
   },
 };
@@ -42,6 +50,7 @@ vi.mock('../src/prisma.js', () => {
     meeting: {
       create: async () => ({ ...state.meeting }),
       findFirst: async () => ({ ...state.meeting }),
+      findUnique: async () => null,
       findMany: async () => [],
       update: async () => ({ ...state.meeting }),
     },
@@ -61,6 +70,8 @@ vi.mock('../src/prisma.js', () => {
     meetingSummary: { deleteMany: async () => ({ count: 0 }), create: async () => ({}) },
     meetingDecision: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
     actionItem: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
+    meetingQuestion: { deleteMany: async () => ({ count: 0 }), createMany: async () => ({}) },
+    notification: { create: async () => ({}), count: async () => 0 },
     meetingSettings: { findUnique: async () => null, upsert: async () => ({}) },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   };
@@ -181,5 +192,43 @@ describe('Data-deletion / retention (privacy controls)', () => {
       .set('Cookie', COOKIE);
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ deleted: true });
+  });
+});
+
+describe('Calendar sync + scheduler + capture endpoints', () => {
+  it('requires authentication for calendar status', async () => {
+    const res = await request(app).get('/api/meetings/calendar/status');
+    expect(res.status).toBe(401);
+  });
+
+  it('reports the calendar status as Mock + read-only by default (offline)', async () => {
+    const res = await request(app).get('/api/meetings/calendar/status').set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toMatchObject({ provider: 'mock', connected: false, readOnly: true });
+  });
+
+  it('syncs the mock calendar into local meetings (idempotent, creates rows)', async () => {
+    const res = await request(app)
+      .post('/api/meetings/calendar/sync')
+      .set('Cookie', COOKIE)
+      .send({ sinceIso: '2026-10-01T09:00:00.000Z', untilIso: '2026-10-01T21:00:00.000Z' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.result.provider).toBe('mock');
+    expect(res.body.data.result.created).toBeGreaterThan(0);
+  });
+
+  it('runs a scheduler tick with an injected now', async () => {
+    const res = await request(app)
+      .post('/api/meetings/scheduler/tick')
+      .set('Cookie', COOKIE)
+      .send({ nowIso: '2026-10-01T10:00:00.000Z' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.result).toHaveProperty('notified');
+  });
+
+  it('reports capture as unsupported (deferred) via the capability endpoint', async () => {
+    const res = await request(app).get('/api/meetings/capture/capability').set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.body.data.capability.audioSupported).toBe(false);
   });
 });

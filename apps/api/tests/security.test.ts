@@ -52,6 +52,13 @@ vi.mock('../src/prisma.js', () => {
     transcriptionEnabled: false,
     aiAnalysisEnabled: true,
     analysisStatus: 'PENDING',
+    status: 'SCHEDULED',
+    teamsMeetingId: null,
+    joinUrl: null,
+    externalCalendarId: null,
+    notifiedAt: null,
+    startedAt: null,
+    endedAt: null,
     createdAt: new Date('2026-09-22T00:00:00Z'),
     updatedAt: new Date('2026-09-22T00:00:00Z'),
     participants: [],
@@ -68,6 +75,7 @@ vi.mock('../src/prisma.js', () => {
     summary: null,
     decisions: [],
     actionItems: [],
+    questions: [],
     transcript: null,
   };
 

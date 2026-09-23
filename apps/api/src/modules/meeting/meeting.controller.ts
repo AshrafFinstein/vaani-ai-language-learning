@@ -1,13 +1,18 @@
 import type { Request, Response } from 'express';
 import type {
+  CalendarSyncInput,
   MeetingTranscribeAudioInput,
   RecordingControlInput,
   ScheduleMeetingInput,
+  SchedulerTickInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
 import { ApiException } from '../../lib/errors.js';
 import { meetingService } from './meeting.service.js';
+import { calendarService } from './calendar.service.js';
+import { schedulerService } from './scheduler.service.js';
+import { getCaptureProvider } from '../../lib/calendar.js';
 
 function userId(req: Request): string {
   if (!req.auth) throw ApiException.unauthorized();
@@ -78,5 +83,36 @@ export const meetingController = {
       languageCode,
     );
     res.status(200).json({ data: { meeting } });
+  },
+
+  // ── Calendar sync (read-only) ───────────────────────────────────────────────
+
+  /** Reports the active calendar backend + connection status (Mock vs Outlook). */
+  async calendarStatus(_req: Request, res: Response): Promise<void> {
+    res.status(200).json({ data: { status: calendarService.status() } });
+  },
+
+  /** Syncs upcoming calendar events into local Meeting rows (idempotent). */
+  async calendarSync(req: Request, res: Response): Promise<void> {
+    const { sinceIso, untilIso } = req.body as CalendarSyncInput;
+    const result = await calendarService.sync(userId(req), sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  // ── Scheduler tick (invoked; no always-on timer) ────────────────────────────
+
+  async schedulerTick(req: Request, res: Response): Promise<void> {
+    const { nowIso } = req.body as SchedulerTickInput;
+    const now = nowIso ? new Date(nowIso) : new Date();
+    if (Number.isNaN(now.getTime())) throw ApiException.badRequest('Invalid nowIso');
+    const result = await schedulerService.tick(userId(req), now);
+    res.status(200).json({ data: { result } });
+  },
+
+  // ── Capture (Local/AVD; state-only, real capture deferred) ──────────────────
+
+  /** Reports whether real local capture is available in this environment. */
+  async captureCapability(_req: Request, res: Response): Promise<void> {
+    res.status(200).json({ data: { capability: getCaptureProvider().capability() } });
   },
 };

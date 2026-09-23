@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import {
+  CalendarSyncInput,
   MeetingTranscribeAudioInput,
   RecordingControlInput,
   ScheduleMeetingInput,
+  SchedulerTickInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
@@ -23,6 +25,21 @@ meetingRouter.patch(
   validateBody(UpdatePrivacySettingsInput),
   asyncHandler(meetingController.updatePrivacySettings),
 );
+
+// Calendar sync (read-only) + scheduler tick + capture capability. Declared before
+// /:id so these literal segments aren't treated as meeting ids.
+meetingRouter.get('/calendar/status', asyncHandler(meetingController.calendarStatus));
+meetingRouter.post(
+  '/calendar/sync',
+  validateBody(CalendarSyncInput),
+  asyncHandler(meetingController.calendarSync),
+);
+meetingRouter.post(
+  '/scheduler/tick',
+  validateBody(SchedulerTickInput),
+  asyncHandler(meetingController.schedulerTick),
+);
+meetingRouter.get('/capture/capability', asyncHandler(meetingController.captureCapability));
 
 meetingRouter.get('/', asyncHandler(meetingController.list));
 meetingRouter.post('/', validateBody(ScheduleMeetingInput), asyncHandler(meetingController.schedule));

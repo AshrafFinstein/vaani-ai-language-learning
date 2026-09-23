@@ -93,6 +93,28 @@ enum MeetingProvider {
   OTHER
 }
 
+// ── Meeting AI automation (calendar-driven auto-capture) ─────────────────────
+// The meeting lifecycle state machine. Transitions are validated in the service
+// (illegal jumps are rejected). Real capture stays DEFERRED — CAPTURING models
+// state only and is consent-gated (CLAUDE.md §13–15).
+enum MeetingStatus {
+  SCHEDULED
+  NOTIFIED
+  STARTED
+  CAPTURING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+/// The kind of in-app notification surfaced to a user. Push/desktop delivery is
+/// deferred — these are in-app only.
+enum NotificationType {
+  MEETING_REMINDER
+  MEETING_STARTED
+  ANALYSIS_READY
+}
+
 enum RecordingState {
   IDLE
   RECORDING
@@ -187,6 +209,7 @@ model User {
   activityEvents    ActivityEvent[]
   achievements      UserAchievement[]
   auditLogs         AuditLog[]
+  notifications     Notification[]
 
   @@index([email])
 }
@@ -325,6 +348,16 @@ model Meeting {
   transcriptionEnabled Boolean               @default(false)
   aiAnalysisEnabled    Boolean               @default(true)
   analysisStatus       MeetingAnalysisStatus @default(PENDING)
+  // ── Lifecycle state machine (Meeting AI automation) ───────────────────────
+  status               MeetingStatus         @default(SCHEDULED)
+  // Teams/calendar linkage (populated by the calendar sync; null for manual meetings).
+  teamsMeetingId       String?
+  joinUrl              String?
+  /// Microsoft Graph event id — idempotency key for calendar sync (unique per user).
+  externalCalendarId   String?
+  notifiedAt           DateTime?
+  startedAt            DateTime?
+  endedAt              DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
@@ -334,9 +367,13 @@ model Meeting {
   summary      MeetingSummary?
   decisions    MeetingDecision[]
   actionItems  ActionItem[]
+  questions    MeetingQuestion[]
+  notifications Notification[]
 
+  @@unique([userId, externalCalendarId])
   @@index([userId])
   @@index([userId, scheduledStart])
+  @@index([userId, status])
 }
 
 /// A meeting participant. `speakerLabel` links a participant to transcript
@@ -404,7 +441,24 @@ model MeetingSummary {
   risks            String[]
   questions        String[]
   nextSteps        String[]
+  /// Important topics the AI surfaced from the transcript (never fabricated).
+  importantTopics  String[]
   createdAt        DateTime @default(now())
+}
+
+/// A distinct question raised during the meeting, extracted from the transcript.
+/// `askedBy` is `Unassigned` when the speaker maps to no known participant, and
+/// `answered` reflects only explicit transcript evidence (CLAUDE.md §15).
+model MeetingQuestion {
+  id        String  @id @default(cuid())
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  ordinal   Int
+  text      String  @db.Text
+  askedBy   String  @default("Unassigned")
+  answered  Boolean @default(false)
+
+  @@index([meetingId, ordinal])
 }
 
 /// A key decision extracted from the (mock) transcript. `decidedBy` is
@@ -447,8 +501,43 @@ model MeetingSettings {
   autoRecord       Boolean  @default(false)
   autoTranscribe   Boolean  @default(false)
   retentionDays    Int      @default(30)
+  // ── Meeting AI automation settings ────────────────────────────────────────
+  /// Master switch for calendar-driven automatic capture (consent-gated; default off).
+  autoCapture      Boolean  @default(false)
+  /// Minutes before a meeting starts to send the reminder notification.
+  reminderMinutes  Int      @default(10)
+  /// Capture toggles — what the (deferred) local capture path is allowed to record.
+  captureAudio     Boolean  @default(false)
+  captureTranscript Boolean @default(false)
+  captureSpeaker   Boolean  @default(false)
+  /// Ask the user before any local capture starts (privacy; default on = never covert).
+  askBeforeCapture Boolean  @default(true)
+  /// AI extraction toggles for the analysis pipeline.
+  extractSummary     Boolean @default(true)
+  extractDecisions   Boolean @default(true)
+  extractActionItems Boolean @default(true)
+  extractQuestions   Boolean @default(true)
+  extractTopics      Boolean @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+/// An in-app notification for a user (meeting reminder / started / analysis ready).
+/// In-app only — push/desktop delivery is deferred. `readAt` is null until dismissed.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  meetingId String?
+  meeting   Meeting?         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }
 
 // ── Advanced AI Modes (Phase 8) ─────────────────────────────────────────────

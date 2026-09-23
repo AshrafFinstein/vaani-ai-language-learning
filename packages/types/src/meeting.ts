@@ -22,6 +22,22 @@ export type MeetingProvider = z.infer<typeof MeetingProvider>;
 export const RecordingState = z.enum(['IDLE', 'RECORDING', 'PAUSED', 'STOPPED']);
 export type RecordingState = z.infer<typeof RecordingState>;
 
+/**
+ * The meeting lifecycle state machine (Meeting AI automation). Transitions are
+ * validated server-side; illegal jumps are rejected. `CAPTURING` models capture
+ * *state* only — real local/AVD capture stays deferred and is consent-gated.
+ */
+export const MeetingStatus = z.enum([
+  'SCHEDULED',
+  'NOTIFIED',
+  'STARTED',
+  'CAPTURING',
+  'PROCESSING',
+  'COMPLETED',
+  'CANCELLED',
+]);
+export type MeetingStatus = z.infer<typeof MeetingStatus>;
+
 /** Whether the (mock) analysis pipeline has run for a meeting. */
 export const AnalysisStatus = z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']);
 export type AnalysisStatus = z.infer<typeof AnalysisStatus>;
@@ -109,8 +125,23 @@ export const MeetingSummaryDTO = z.object({
   risks: z.array(z.string()).default([]),
   questions: z.array(z.string()).default([]),
   nextSteps: z.array(z.string()).default([]),
+  /** Important topics distilled from the transcript (never fabricated, CLAUDE.md §15). */
+  importantTopics: z.array(z.string()).default([]),
 });
 export type MeetingSummaryDTO = z.infer<typeof MeetingSummaryDTO>;
+
+/**
+ * A distinct question raised during the meeting. `askedBy` is `Unassigned` when the
+ * speaker maps to no known participant; `answered` reflects explicit evidence only.
+ */
+export const QuestionDTO = z.object({
+  id: z.string(),
+  ordinal: z.number().int(),
+  text: z.string(),
+  askedBy: z.string(),
+  answered: z.boolean(),
+});
+export type QuestionDTO = z.infer<typeof QuestionDTO>;
 
 export const TranscriptSegmentDTO = z.object({
   id: z.string(),
@@ -126,6 +157,8 @@ export const MeetingAnalysisDTO = z.object({
   summary: MeetingSummaryDTO,
   decisions: z.array(DecisionDTO).default([]),
   actionItems: z.array(ActionItemDTO).default([]),
+  /** Distinct questions raised, extracted from the transcript (never invented). */
+  questions: z.array(QuestionDTO).default([]),
   /** Participants the analyzer could *derive from the transcript* (never invented). */
   participants: z.array(ParticipantDTO).default([]),
 });
@@ -154,6 +187,15 @@ export const MeetingDTO = z.object({
   transcriptionEnabled: z.boolean(),
   aiAnalysisEnabled: z.boolean(),
   analysisStatus: AnalysisStatus,
+  /** Lifecycle state (SCHEDULED…COMPLETED/CANCELLED). Drives the automation UI. */
+  status: MeetingStatus,
+  /** Calendar linkage (populated by calendar sync; null for manual meetings). */
+  teamsMeetingId: z.string().nullable(),
+  joinUrl: z.string().nullable(),
+  externalCalendarId: z.string().nullable(),
+  notifiedAt: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -174,6 +216,7 @@ export const MeetingDetailDTO = MeetingDTO.extend({
   summary: MeetingSummaryDTO.nullable(),
   decisions: z.array(DecisionDTO),
   actionItems: z.array(ActionItemDTO),
+  questions: z.array(QuestionDTO),
   transcriptSegments: z.array(TranscriptSegmentDTO),
 });
 export type MeetingDetailDTO = z.infer<typeof MeetingDetailDTO>;
@@ -196,7 +239,11 @@ export const RecordingControlInput = z.object({
 });
 export type RecordingControlInput = z.infer<typeof RecordingControlInput>;
 
-/** Per-user privacy defaults for meeting recording/transcription. */
+/**
+ * Per-user privacy + automation defaults for Meeting Intelligence. The capture and
+ * `autoCapture` flags govern the (deferred, consent-gated) local capture path;
+ * `askBeforeCapture` defaults true so capture is never covert (CLAUDE.md §13–14).
+ */
 export const MeetingPrivacySettings = z.object({
   recordingConsent: z.boolean().default(false),
   transcriptConsent: z.boolean().default(false),
@@ -204,11 +251,113 @@ export const MeetingPrivacySettings = z.object({
   autoTranscribe: z.boolean().default(false),
   /** Days to retain recordings/transcripts before eligible for deletion. */
   retentionDays: z.number().int().min(1).max(3650).default(30),
+  // ── Automation ────────────────────────────────────────────────────────────
+  /** Master switch for calendar-driven automatic capture (consent-gated). */
+  autoCapture: z.boolean().default(false),
+  /** Minutes before start to notify (reminder window). */
+  reminderMinutes: z.number().int().min(0).max(1440).default(10),
+  captureAudio: z.boolean().default(false),
+  captureTranscript: z.boolean().default(false),
+  captureSpeaker: z.boolean().default(false),
+  /** Ask before any local capture starts — default true (never covert). */
+  askBeforeCapture: z.boolean().default(true),
+  extractSummary: z.boolean().default(true),
+  extractDecisions: z.boolean().default(true),
+  extractActionItems: z.boolean().default(true),
+  extractQuestions: z.boolean().default(true),
+  extractTopics: z.boolean().default(true),
 });
 export type MeetingPrivacySettings = z.infer<typeof MeetingPrivacySettings>;
 
 export const UpdatePrivacySettingsInput = MeetingPrivacySettings.partial();
 export type UpdatePrivacySettingsInput = z.infer<typeof UpdatePrivacySettingsInput>;
+
+// ── Notifications (in-app only; push/desktop deferred) ────────────────────────
+
+export const NotificationType = z.enum([
+  'MEETING_REMINDER',
+  'MEETING_STARTED',
+  'ANALYSIS_READY',
+]);
+export type NotificationType = z.infer<typeof NotificationType>;
+
+export const NotificationDTO = z.object({
+  id: z.string(),
+  type: NotificationType,
+  title: z.string(),
+  body: z.string(),
+  meetingId: z.string().nullable(),
+  readAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type NotificationDTO = z.infer<typeof NotificationDTO>;
+
+export const NotificationListDTO = z.object({
+  notifications: z.array(NotificationDTO),
+  unreadCount: z.number().int(),
+});
+export type NotificationListDTO = z.infer<typeof NotificationListDTO>;
+
+// ── Calendar sync (real Outlook read-only when configured; Mock default) ──────
+
+/** Which calendar backend is active — surfaced so the UI can show connection status. */
+export const CalendarProviderKind = z.enum(['mock', 'outlook']);
+export type CalendarProviderKind = z.infer<typeof CalendarProviderKind>;
+
+/** A normalized calendar event (provider-agnostic). Read-only — Vaani never writes back. */
+export const CalendarEventDTO = z.object({
+  /** External calendar (Graph) event id — the idempotency key for sync. */
+  externalCalendarId: z.string(),
+  title: z.string(),
+  start: z.string(),
+  end: z.string(),
+  joinUrl: z.string().nullable(),
+  teamsMeetingId: z.string().nullable(),
+  organizer: z
+    .object({ name: z.string(), email: z.string().nullable() })
+    .nullable(),
+  attendees: z.array(z.object({ name: z.string(), email: z.string().nullable() })).default([]),
+});
+export type CalendarEventDTO = z.infer<typeof CalendarEventDTO>;
+
+/** Calendar connection status surfaced in Settings (read-only). */
+export const CalendarStatusDTO = z.object({
+  provider: CalendarProviderKind,
+  /** True when the active provider is a real (Outlook) connection with a token. */
+  connected: z.boolean(),
+  readOnly: z.literal(true),
+});
+export type CalendarStatusDTO = z.infer<typeof CalendarStatusDTO>;
+
+/** Body for a calendar sync request — an optional window (defaults applied server-side). */
+export const CalendarSyncInput = z.object({
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type CalendarSyncInput = z.infer<typeof CalendarSyncInput>;
+
+export const CalendarSyncResultDTO = z.object({
+  provider: CalendarProviderKind,
+  created: z.number().int(),
+  updated: z.number().int(),
+  meetings: z.array(MeetingDTO),
+});
+export type CalendarSyncResultDTO = z.infer<typeof CalendarSyncResultDTO>;
+
+// ── Scheduler tick (invoked via endpoint; injected `now` for determinism) ─────
+
+/** Optional injected `now` (ISO). Server defaults to the real clock when omitted. */
+export const SchedulerTickInput = z.object({
+  nowIso: z.string().optional(),
+});
+export type SchedulerTickInput = z.infer<typeof SchedulerTickInput>;
+
+export const SchedulerTickResultDTO = z.object({
+  notified: z.array(z.string()),
+  started: z.array(z.string()),
+  processing: z.array(z.string()),
+});
+export type SchedulerTickResultDTO = z.infer<typeof SchedulerTickResultDTO>;
 
 export interface MeetingProviderMeta {
   value: MeetingProvider;

@@ -19,6 +19,8 @@ import {
   History,
   Trophy,
   CalendarClock,
+  CalendarCheck,
+  SlidersHorizontal,
   User,
   type LucideIcon,
 } from 'lucide-react';
@@ -61,7 +63,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Meetings',
     items: [
+      { label: "Today's Meetings", to: '/app/meetings/today', icon: CalendarCheck, ready: true },
       { label: 'Meetings', to: '/app/meetings', icon: CalendarClock, ready: true },
+      { label: 'Meeting Settings', to: '/app/meetings/settings', icon: SlidersHorizontal, ready: true },
     ],
   },
   {

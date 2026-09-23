@@ -11,6 +11,7 @@ const KEYS = {
   list: ['meetings'] as const,
   detail: (id: string) => ['meeting', id] as const,
   settings: ['meeting-settings'] as const,
+  calendarStatus: ['meeting-calendar-status'] as const,
 };
 
 export function useMeetings() {
@@ -83,5 +84,33 @@ export function useDeleteTranscript(id: string) {
   return useMutation({
     mutationFn: () => meetingApi.deleteTranscript(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.detail(id) }),
+  });
+}
+
+export function useCalendarStatus() {
+  return useQuery({
+    queryKey: KEYS.calendarStatus,
+    queryFn: () => meetingApi.calendarStatus().then((r) => r.status),
+  });
+}
+
+/** Syncs upcoming calendar meetings into local rows, then refreshes the list. */
+export function useCalendarSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => meetingApi.calendarSync().then((r) => r.result),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.list }),
+  });
+}
+
+/** Runs the scheduler tick (notify/start/process), then refreshes list + notifications. */
+export function useSchedulerTick() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => meetingApi.schedulerTick().then((r) => r.result),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.list });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
   });
 }

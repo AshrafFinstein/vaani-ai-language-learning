@@ -32,6 +32,19 @@ const EnvSchema = z.object({
   OPENAI_STT_MODEL: z.string().optional(),
   OPENAI_TTS_MODEL: z.string().optional(),
   OPENAI_TTS_VOICE: z.string().optional(),
+
+  // ── Calendar (Meeting AI automation) ────────────────────────────────────────
+  // Calendar backend selector. 'mock' (default, offline) | 'outlook' (real Graph).
+  // Outlook activates ONLY when CALENDAR_PROVIDER=outlook AND MS_GRAPH_ACCESS_TOKEN
+  // is set — otherwise the deterministic Mock is used, so the suite runs offline.
+  CALENDAR_PROVIDER: z.string().default('mock'),
+  // Microsoft Graph *delegated* bearer access token. Minting it (Azure AD/MSAL OAuth)
+  // is out of scope; the Azure app registration + delegated Calendars.Read /
+  // OnlineMeetings.Read consent is required to obtain it. NEVER commit a real token.
+  MS_GRAPH_ACCESS_TOKEN: z.string().optional(),
+  MS_GRAPH_BASE_URL: z.string().default('https://graph.microsoft.com/v1.0'),
+  // Default reminder window (minutes before start) used when a user has no setting.
+  MEETING_REMINDER_MINUTES: z.coerce.number().int().min(0).max(1440).default(10),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
