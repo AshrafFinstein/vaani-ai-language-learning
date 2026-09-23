@@ -23,6 +23,10 @@ _Last updated: 2026-09-22._
 | — | — | **Extra modules** (Talkpal gap): Flashcards (decks + SR review + AI gen), Explore (daily picks) | — | ✅ Done | `feature/flashcards-explore` → develop |
 
 Notes:
+- **Production AI/speech wired (opt-in):** real OpenAI text provider (hardened: timeouts, retries,
+  fallback) + real Whisper STT / OpenAI TTS behind the existing abstractions, selected by env
+  (`AI_PROVIDER`/`SPEECH_PROVIDER`=openai + `OPENAI_API_KEY`). Mock remains the default so the suite
+  runs offline. Keys live only in local `.env` (never committed). Live Teams/AVD capture still deferred.
 - Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
 - `develop` integrates **P1–P10 + Flashcards/Explore** (P1/P2 docs, P3–P10 features; Phase 2 profile
   merged as `0421ec5`); integration gate green: typecheck + lint + 157 tests.

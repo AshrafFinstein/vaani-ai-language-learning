@@ -19,7 +19,9 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 - ✅ Extra modules from Talkpal gap analysis: Flashcards + Explore — done, integrated.
 - ✅ P10 Progress + analytics (ActivityEvent tracking, streaks/level/XP, weekly series, daily
   feedback, achievements) — done; dashboard now uses real data, `mock/dashboard.ts` removed.
-- `develop` integrates P1–P10 + Flashcards/Explore; gate green: 157 tests.
+- `develop` integrates P1–P10 + Flashcards/Explore + real AI/speech; gate green: 178 tests.
+- ✅ Production AI/speech wired (opt-in via env): hardened OpenAI text + real Whisper STT / OpenAI TTS
+  behind the abstractions; Mock stays default (offline suite). Keys only in local `.env`.
 - Next: P11–12 QA / security / deployment.
 
 ## Gate (must all exit 0, re-run independently)
