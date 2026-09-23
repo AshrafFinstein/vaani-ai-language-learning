@@ -43,6 +43,8 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 | feature/phase-10-progress (9702be3) | P10 | ✅ typecheck+lint+157 tests | ✅ develop |
 | feature/real-ai-speech (950fa71) | real OpenAI + speech | ✅ typecheck+lint+178 tests | ✅ develop |
 | feature/phase-11-12-qa-deploy (29b8a8f) | P11-12 | ✅ typecheck+lint+211 tests+build | ✅ develop |
+| feature/meeting-automation (e3f3db3, merged PR#4 capture) | Meeting AI automation | ✅ typecheck+lint+270 tests | ✅ develop |
+| feature/ics-calendar (37b92e5) | AVD ICS calendar + transcript import | ✅ typecheck+lint+303 tests | ✅ develop |
 
 ## Open coordination notes
 - A background agent owns worktree `.claude/worktrees/phase-3` on `feature/phase-4-5-modes`; it
