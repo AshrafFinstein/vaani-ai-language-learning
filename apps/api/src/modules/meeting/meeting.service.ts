@@ -23,6 +23,7 @@ import {
 import {
   createMeetingAnalysisProvider,
   createMeetingTranscriptProvider,
+  parseTeamsLink,
   parseVtt,
   type KnownParticipant,
   type TranscriptSegmentInput,
@@ -249,6 +250,10 @@ export const meetingService = {
     const scheduledStart = combineDateTime(input.date, input.startTime);
     const scheduledEnd = combineDateTime(input.date, input.endTime);
 
+    // When a Teams link is pasted, store it and DERIVE the meeting id from it (never
+    // invented — null when the link is not a Teams meeting URL). Absent → both null.
+    const link = input.joinUrl ? parseTeamsLink(input.joinUrl) : null;
+
     const meeting = await prisma.meeting.create({
       data: {
         userId,
@@ -256,6 +261,8 @@ export const meetingService = {
         provider: input.provider,
         scheduledStart,
         scheduledEnd,
+        joinUrl: link?.joinUrl ?? null,
+        teamsMeetingId: link?.teamsMeetingId ?? null,
         recordingEnabled: input.recordingEnabled,
         transcriptionEnabled: input.transcriptionEnabled,
         aiAnalysisEnabled: input.aiAnalysisEnabled,

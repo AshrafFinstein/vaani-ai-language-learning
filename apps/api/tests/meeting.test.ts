@@ -48,7 +48,13 @@ const state = {
 vi.mock('../src/prisma.js', () => {
   const prisma = {
     meeting: {
-      create: async () => ({ ...state.meeting }),
+      // Reflect the fields the schedule path writes (joinUrl/teamsMeetingId) so the
+      // response mirrors what was persisted; relations come from the fixture.
+      create: async ({ data }: { data: Record<string, unknown> }) => ({
+        ...state.meeting,
+        joinUrl: (data.joinUrl as string | null) ?? null,
+        teamsMeetingId: (data.teamsMeetingId as string | null) ?? null,
+      }),
       findFirst: async () => ({ ...state.meeting }),
       findUnique: async () => null,
       findMany: async () => [],
@@ -101,6 +107,29 @@ describe('POST /api/meetings (schedule)', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.meeting).toMatchObject({ title: 'Weekly sync', provider: 'TEAMS' });
+    // No link supplied → both linkage fields stay null (backward compatible).
+    expect(res.body.data.meeting.joinUrl).toBeNull();
+    expect(res.body.data.meeting.teamsMeetingId).toBeNull();
+  });
+
+  it('stores a pasted Teams link and derives the meeting id', async () => {
+    const joinUrl =
+      'https://teams.microsoft.com/l/chat/19:meeting_ZDcwABC@thread.v2/conversations?ctx=chat';
+    const res = await request(app)
+      .post('/api/meetings')
+      .set('Cookie', COOKIE)
+      .send({
+        title: 'Manual Teams meeting',
+        date: '2026-10-01',
+        startTime: '10:00',
+        endTime: '11:00',
+        provider: 'TEAMS',
+        joinUrl,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.meeting.joinUrl).toBe(joinUrl);
+    expect(res.body.data.meeting.teamsMeetingId).toBe('19:meeting_ZDcwABC@thread.v2');
   });
 
   it('rejects end time before start time with 422', async () => {

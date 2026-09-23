@@ -76,6 +76,18 @@ export const ScheduleMeetingInput = z
     startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm'),
     endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm'),
     provider: MeetingProvider.default('TEAMS'),
+    /**
+     * Optional Teams meeting invite link. When supplied, the API stores it on the
+     * meeting and derives the `teamsMeetingId` from it (never inventing one). This is the
+     * locked-down AVD path: the user has the link even without calendar/Graph access.
+     * Trimmed; an empty string is treated as omitted (→ undefined).
+     */
+    joinUrl: z
+      .string()
+      .trim()
+      .url('Enter a valid http(s) meeting link')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     participants: z.array(ScheduleParticipantInput).default([]),
     recordingEnabled: z.boolean().default(false),
     transcriptionEnabled: z.boolean().default(false),

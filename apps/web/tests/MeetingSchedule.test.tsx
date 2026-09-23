@@ -14,6 +14,7 @@ describe('ScheduleForm', () => {
     expect(screen.getByLabelText('Start time')).toBeInTheDocument();
     expect(screen.getByLabelText('End time')).toBeInTheDocument();
     expect(screen.getByLabelText('Provider')).toBeInTheDocument();
+    expect(screen.getByLabelText('Teams meeting link (optional)')).toBeInTheDocument();
     expect(screen.getByText('Enable recording')).toBeInTheDocument();
     expect(screen.getByText('Enable transcription')).toBeInTheDocument();
     expect(screen.getByText('Enable AI analysis')).toBeInTheDocument();
@@ -55,5 +56,22 @@ describe('ScheduleForm', () => {
       endTime: '11:00',
       participants: [{ name: 'Priya' }],
     });
+  });
+
+  it('includes a pasted Teams link in the submitted payload', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(input: ScheduleMeetingInput) => void>();
+    renderWithProviders(<ScheduleForm onSubmit={onSubmit} />);
+
+    const joinUrl =
+      'https://teams.microsoft.com/l/chat/19:meeting_ZDcwABC@thread.v2/conversations?ctx=chat';
+    await user.type(screen.getByLabelText('Title'), 'Sprint planning');
+    await user.type(screen.getByLabelText('Date'), '2026-10-01');
+    await user.type(screen.getByLabelText('Teams meeting link (optional)'), joinUrl);
+
+    await user.click(screen.getByRole('button', { name: /schedule meeting/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ joinUrl });
   });
 });

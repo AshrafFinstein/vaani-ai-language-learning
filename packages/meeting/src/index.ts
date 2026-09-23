@@ -23,6 +23,11 @@ export {
 } from './calendar/ics-calendar.js';
 export { parseIcs } from './calendar/ics-parser.js';
 export {
+  parseTeamsLink,
+  teamsMeetingIdFromJoinUrl,
+  type ParsedTeamsLink,
+} from './calendar/teams-link.js';
+export {
   createCalendarProvider,
   calendarProviderStatus,
   type CalendarProviderEnv,

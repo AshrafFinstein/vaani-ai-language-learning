@@ -1,4 +1,5 @@
 import type { CalendarEventDTO } from '@vaani/types';
+import { teamsMeetingIdFromJoinUrl } from './teams-link.js';
 
 /**
  * A focused, dependency-free iCalendar (RFC 5545) parser — just enough to turn a
@@ -135,13 +136,6 @@ function extractTeamsUrl(props: Record<string, string>): string | null {
     }
   }
   return null;
-}
-
-/** Derives the Teams thread id from a join URL when present (never invented). */
-function teamsMeetingIdFromJoinUrl(joinUrl: string | null): string | null {
-  if (!joinUrl) return null;
-  const match = joinUrl.match(/19%3ameeting_[^%/]+%40thread\.v2|19:meeting_[^/]+@thread\.v2/i);
-  return match ? decodeURIComponent(match[0]) : null;
 }
 
 /** Parses an `ORGANIZER` (or `ATTENDEE`) line into a name/email pair. */
