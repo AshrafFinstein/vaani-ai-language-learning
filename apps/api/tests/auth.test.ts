@@ -62,7 +62,12 @@ vi.mock('../src/prisma.js', () => {
           role: 'USER',
           createdAt: now,
           updatedAt: now,
-          profile: { learningLanguageCode: null, level: 'BEGINNER', dailyGoalMinutes: 30, theme: 'SYSTEM' },
+          profile: {
+            learningLanguageCode: null,
+            level: 'BEGINNER',
+            dailyGoalMinutes: 30,
+            theme: 'SYSTEM',
+          },
         };
         users.set(user.id, user);
         return structuredClone(user);
@@ -89,27 +94,29 @@ vi.mock('../src/prisma.js', () => {
         where,
         data,
       }: {
-        where: { refreshTokenHash: string };
+        where: { refreshTokenHash?: string; id?: string; userId?: string; revokedAt?: null };
         data: { revokedAt: Date };
       }) => {
-        const s = sessions.get(where.refreshTokenHash);
-        if (s) s.revokedAt = data.revokedAt;
-        return { count: s ? 1 : 0 };
-      },
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { revokedAt: Date };
-      }) => {
+        let count = 0;
         for (const s of sessions.values()) {
-          if (s.id === where.id) {
-            s.revokedAt = data.revokedAt;
-            return structuredClone(s);
-          }
+          if (where.refreshTokenHash !== undefined && s.refreshTokenHash !== where.refreshTokenHash)
+            continue;
+          if (where.id !== undefined && s.id !== where.id) continue;
+          if (where.userId !== undefined && s.userId !== where.userId) continue;
+          if (where.revokedAt === null && s.revokedAt !== null) continue;
+          s.revokedAt = data.revokedAt;
+          count++;
         }
-        throw new Error('session not found');
+        return { count };
+      },
+      /** Test helper: backdate a session's revocation to simulate time passing. */
+      __backdateRevocation(refreshTokenHash: string, ms: number) {
+        const s = sessions.get(refreshTokenHash);
+        if (s?.revokedAt) s.revokedAt = new Date(s.revokedAt.getTime() - ms);
+      },
+      /** Test helper: live (unrevoked) sessions. */
+      __liveCount() {
+        return [...sessions.values()].filter((s) => s.revokedAt === null).length;
       },
     },
   };
@@ -120,8 +127,15 @@ vi.mock('../src/prisma.js', () => {
 // Import AFTER the mock is registered.
 const { createApp } = await import('../src/app.js');
 const { prisma } = (await import('../src/prisma.js')) as unknown as {
-  prisma: { __reset: () => void };
+  prisma: {
+    __reset: () => void;
+    session: {
+      __backdateRevocation: (refreshTokenHash: string, ms: number) => void;
+      __liveCount: () => number;
+    };
+  };
 };
+const { hashToken } = await import('../src/lib/tokens.js');
 
 const app = createApp();
 const validUser = { name: 'Alex Rivera', email: 'alex@example.com', password: 'Password1' };
@@ -172,6 +186,14 @@ describe('POST /api/auth/login', () => {
     expect(res.body.data.user.email).toBe(validUser.email);
   });
 
+  it('rejects an unknown email with the same 401 as a wrong password', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'nobody@example.com', password: 'Password1' });
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('Invalid email or password');
+  });
+
   it('rejects wrong password with 401', async () => {
     await request(app).post('/api/auth/register').send(validUser);
     const res = await request(app)
@@ -204,5 +226,69 @@ describe('POST /api/auth/logout', () => {
     const res = await agent.post('/api/auth/logout');
     expect(res.status).toBe(200);
     expect(res.body.data.success).toBe(true);
+  });
+});
+
+/** Extracts the refresh token value from a response's Set-Cookie header. */
+function refreshCookie(res: request.Response): string {
+  const cookies = (res.headers['set-cookie'] as unknown as string[] | undefined) ?? [];
+  const match = cookies.find((c) => c.startsWith('vaani_refresh='));
+  if (!match) throw new Error('no refresh cookie');
+  return match.split(';')[0]!.slice('vaani_refresh='.length);
+}
+
+describe('POST /api/auth/refresh', () => {
+  it('returns 401 without a refresh cookie', async () => {
+    const res = await request(app).post('/api/auth/refresh');
+    expect(res.status).toBe(401);
+  });
+
+  it('rotates the refresh token and issues new cookies', async () => {
+    const reg = await request(app).post('/api/auth/register').send(validUser);
+    const oldToken = refreshCookie(reg);
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', `vaani_refresh=${oldToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.email).toBe(validUser.email);
+    expect(refreshCookie(res)).not.toBe(oldToken);
+    expect(prisma.session.__liveCount()).toBe(1);
+  });
+
+  it('rejects a just-rotated token without revoking other sessions (multi-tab race)', async () => {
+    const reg = await request(app).post('/api/auth/register').send(validUser);
+    const oldToken = refreshCookie(reg);
+    await request(app).post('/api/auth/refresh').set('Cookie', `vaani_refresh=${oldToken}`);
+
+    const replay = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', `vaani_refresh=${oldToken}`);
+    expect(replay.status).toBe(401);
+    expect(prisma.session.__liveCount()).toBe(1);
+  });
+
+  it('revokes every session when an old rotated token is reused (theft detection)', async () => {
+    const reg = await request(app).post('/api/auth/register').send(validUser);
+    const oldToken = refreshCookie(reg);
+    const rotated = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', `vaani_refresh=${oldToken}`);
+    await request(app)
+      .post('/api/auth/login')
+      .send({ email: validUser.email, password: validUser.password });
+    expect(prisma.session.__liveCount()).toBe(2);
+
+    prisma.session.__backdateRevocation(hashToken(oldToken), 5 * 60_000);
+    const replay = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', `vaani_refresh=${oldToken}`);
+    expect(replay.status).toBe(401);
+    expect(prisma.session.__liveCount()).toBe(0);
+
+    const legit = await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', `vaani_refresh=${refreshCookie(rotated)}`);
+    expect(legit.status).toBe(401);
   });
 });

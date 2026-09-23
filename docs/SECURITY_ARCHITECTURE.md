@@ -1,6 +1,6 @@
 # Security Architecture — Vaani AI
 
-_Last updated: 2026-09-22. Author: Agent 2 (Architecture)._
+_Last updated: 2026-09-23. Author: Agent 2 (Architecture)._
 
 Security posture of the API and web app, plus the Meeting Intelligence privacy/consent model.
 
@@ -20,11 +20,19 @@ Security posture of the API and web app, plus the Meeting Intelligence privacy/c
 - **Session lifecycle (`auth.service.ts`):** register/login create a `Session` row and set cookies.
   `logout` marks the matching session `revokedAt` and clears cookies. `refresh` **rotates**: the
   used session is revoked and a fresh one issued; expired/revoked/unknown refresh tokens → 401.
+  Rotation is atomic (a conditional `updateMany … revokedAt: null`), so two concurrent refreshes
+  with one token cannot both mint sessions. **Reuse detection:** presenting a token that was rotated
+  more than 60 s ago (`REFRESH_REUSE_GRACE_MS`) is treated as theft and revokes *all* of the user's
+  live sessions; within the grace window it is a benign multi-tab race and only that request fails.
+- **Client refresh (`apps/web/src/lib/api.ts`):** on a 401 from any non-`/api/auth/*` call the
+  client calls `/api/auth/refresh` once (a single shared in-flight promise for concurrent 401s) and
+  retries the request; if the refresh fails it clears the auth store, which routes to login.
 - **Guard (`middleware/auth.ts`):** `requireAuth` verifies the access cookie and attaches
   `req.auth = { userId, role }`; missing/invalid/expired → 401 with a generic message. `requireAdmin`
   gates ADMIN-only routes.
 - **Enumeration resistance:** login returns a uniform "Invalid email or password" for both unknown
-  email and wrong password; `forgot-password` always returns 202 regardless of whether the email
+  email and wrong password, and runs a bcrypt compare against a dummy hash for unknown emails so
+  response timing does not reveal which accounts exist; `forgot-password` always returns 202 regardless of whether the email
   exists (the email-send itself is a stub today).
 - **Deferred:** Google OAuth, email verification, and password reset are stubbed with TODOs.
 
@@ -132,7 +140,9 @@ passes, so a denied (404) request records nothing. Rows cascade-delete with the 
 | Control | Status |
 | ------- | ------ |
 | bcrypt password hashing (12 rounds) | ✅ |
-| JWT access + hashed rotating refresh sessions | ✅ |
+| JWT access + hashed rotating refresh sessions (atomic, reuse detection) | ✅ |
+| Client auto-refresh of expired access tokens | ✅ |
+| Login timing does not leak account existence | ✅ |
 | httpOnly / SameSite=Lax / secure-in-prod cookies | ✅ |
 | helmet secure headers, x-powered-by off | ✅ |
 | CORS allow-list, credentialed | ✅ |
