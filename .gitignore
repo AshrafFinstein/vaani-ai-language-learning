@@ -151,3 +151,7 @@ reference/*.jpg
 reference/*.jpeg
 reference/*.gif
 reference/*.mp4
+
+# Playwright E2E artifacts
+apps/web/test-results/
+apps/web/playwright-report/
