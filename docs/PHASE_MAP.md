@@ -19,7 +19,7 @@ _Last updated: 2026-09-22._
 | P8 | 8 | Advanced AI modes: photo, debate, characters, scenarios | Ph 6 | ✅ Done (mock vision) | `feature/phase-8-advanced-modes` → develop |
 | P9 | 9 | Courses: catalog, lessons, modules, exercises, progress | Ph 7 | ✅ Done | `feature/phase-9-courses` → develop |
 | P10 | 10 | Progress + analytics: real activity tracking, streaks, level/XP, weekly series, daily feedback, achievements | Ph 8 | ✅ Done (real data; mock removed) | `feature/phase-10-progress` → develop |
-| P11–12 | 11 | QA / security / deployment | Ph 10 | ❌ Not started | — |
+| P11–12 | 11 | QA / security / deployment: AuthZ/consent/audit tests, AuditLog, data-deletion, Dockerfiles, prod compose, GitHub Actions CI, deploy docs | Ph 10 | ✅ Done | `feature/phase-11-12-qa-deploy` → develop |
 | — | — | **Extra modules** (Talkpal gap): Flashcards (decks + SR review + AI gen), Explore (daily picks) | — | ✅ Done | `feature/flashcards-explore` → develop |
 
 Notes:
@@ -28,8 +28,9 @@ Notes:
   (`AI_PROVIDER`/`SPEECH_PROVIDER`=openai + `OPENAI_API_KEY`). Mock remains the default so the suite
   runs offline. Keys live only in local `.env` (never committed). Live Teams/AVD capture still deferred.
 - Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
-- `develop` integrates **P1–P10 + Flashcards/Explore** (P1/P2 docs, P3–P10 features; Phase 2 profile
-  merged as `0421ec5`); integration gate green: typecheck + lint + 157 tests.
-- Next buildable work: **P11–12 QA / security / deployment** (test coverage, security/privacy/permission
-  tests, Docker, CI/CD, monitoring, deploy). Real Teams/AVD capture + voice device selection + a distinct
-  server-side CALL activity remain later work.
+- ✅ **ALL PHASES COMPLETE (P1–P12)** on `develop` + Flashcards/Explore + real AI/speech.
+  Integration gate green: typecheck + lint + **211 tests** + build. E2E is a separate `npm run e2e`.
+- `develop` integrates P1/P2 docs, P3–P12 features (Phase 2 profile merged as `0421ec5`).
+- Remaining/later work (not roadmap phases): live Teams/AVD meeting capture (consent + env validation),
+  voice mic/speaker device selection, a distinct server-side CALL activity kind, TLS/ingress, and
+  centralized log/metric shipping. Optional: old-Phase 9 Subscriptions/usage limits.

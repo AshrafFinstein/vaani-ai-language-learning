@@ -19,10 +19,13 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 - ✅ Extra modules from Talkpal gap analysis: Flashcards + Explore — done, integrated.
 - ✅ P10 Progress + analytics (ActivityEvent tracking, streaks/level/XP, weekly series, daily
   feedback, achievements) — done; dashboard now uses real data, `mock/dashboard.ts` removed.
-- `develop` integrates P1–P10 + Flashcards/Explore + real AI/speech; gate green: 178 tests.
+- ✅ P11–12 QA/security/deployment — AuthZ/consent/audit tests, AuditLog, data-deletion, Dockerfiles,
+  prod compose, GitHub Actions CI, deploy docs. Done, integrated.
 - ✅ Production AI/speech wired (opt-in via env): hardened OpenAI text + real Whisper STT / OpenAI TTS
   behind the abstractions; Mock stays default (offline suite). Keys only in local `.env`.
-- Next: P11–12 QA / security / deployment.
+- **ALL ROADMAP PHASES COMPLETE (P1–P12).** `develop` gate green: typecheck + lint + 211 tests + build.
+- Remaining non-phase work: live Teams/AVD capture, voice device selection, distinct CALL activity,
+  TLS/ingress, centralized logging. `main` still at Phase 8 (user PR #3) — a `develop → main` PR promotes everything.
 
 ## Gate (must all exit 0, re-run independently)
 `npm run typecheck` · `npm run lint` · `npm run test`
@@ -38,6 +41,8 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 | feature/phase-9-courses (5413a48) + P1/P2 docs | P9,P1,P2 | ✅ typecheck+lint+115 tests | ✅ merged into develop |
 | feature/flashcards-explore (a46ed60) | Flashcards, Explore | ✅ typecheck+lint+135 tests | ✅ develop = a46ed60 |
 | feature/phase-10-progress (9702be3) | P10 | ✅ typecheck+lint+157 tests | ✅ develop |
+| feature/real-ai-speech (950fa71) | real OpenAI + speech | ✅ typecheck+lint+178 tests | ✅ develop |
+| feature/phase-11-12-qa-deploy (29b8a8f) | P11-12 | ✅ typecheck+lint+211 tests+build | ✅ develop |
 
 ## Open coordination notes
 - A background agent owns worktree `.claude/worktrees/phase-3` on `feature/phase-4-5-modes`; it
