@@ -18,3 +18,15 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many requests, please slow down.' } },
 });
+
+/**
+ * Tight limiter for speech endpoints — real STT/TTS calls are billable, so cap them
+ * well below the general API limit to blunt abuse and control cost.
+ */
+export const speechLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: env.NODE_ENV === 'test' ? 100_000 : 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many speech requests, please slow down.' } },
+});

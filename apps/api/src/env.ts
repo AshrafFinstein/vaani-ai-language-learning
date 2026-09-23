@@ -20,6 +20,18 @@ const EnvSchema = z.object({
   AI_PROVIDER: z.string().default('mock'),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
+  // Chat model (real OpenAI path only; ignored by the mock).
+  OPENAI_MODEL: z.string().optional(),
+  // When true, transient OpenAI failures degrade to the deterministic Mock provider.
+  AI_FALLBACK_TO_MOCK: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  // Speech provider selector; falls back to AI_PROVIDER when unset. 'mock' | 'openai'.
+  SPEECH_PROVIDER: z.string().optional(),
+  OPENAI_STT_MODEL: z.string().optional(),
+  OPENAI_TTS_MODEL: z.string().optional(),
+  OPENAI_TTS_VOICE: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

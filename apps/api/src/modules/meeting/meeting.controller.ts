@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type {
+  MeetingTranscribeAudioInput,
   RecordingControlInput,
   ScheduleMeetingInput,
   StartRecordingInput,
@@ -65,5 +66,17 @@ export const meetingController = {
   async deleteTranscript(req: Request, res: Response): Promise<void> {
     await meetingService.deleteTranscript(userId(req), req.params.id!);
     res.status(200).json({ data: { deleted: true } });
+  },
+
+  /** Runs real STT on PROVIDED meeting audio and feeds the analysis pipeline. */
+  async transcribeAudio(req: Request, res: Response): Promise<void> {
+    const { audio, languageCode } = req.body as MeetingTranscribeAudioInput;
+    const meeting = await meetingService.transcribeProvidedAudio(
+      userId(req),
+      req.params.id!,
+      audio,
+      languageCode,
+    );
+    res.status(200).json({ data: { meeting } });
   },
 };

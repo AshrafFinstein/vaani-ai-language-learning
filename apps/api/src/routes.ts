@@ -12,6 +12,7 @@ import { courseRouter } from './modules/course/course.routes.js';
 import { flashcardRouter } from './modules/flashcard/flashcard.routes.js';
 import { exploreRouter } from './modules/explore/explore.routes.js';
 import { progressRouter } from './modules/progress/progress.routes.js';
+import { speechRouter } from './modules/speech/speech.routes.js';
 
 export const apiRouter = Router();
 
@@ -32,3 +33,4 @@ apiRouter.use('/courses', courseRouter);
 apiRouter.use('/flashcards', flashcardRouter);
 apiRouter.use('/explore', exploreRouter);
 apiRouter.use('/progress', progressRouter);
+apiRouter.use('/speech', speechRouter);

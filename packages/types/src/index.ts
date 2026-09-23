@@ -16,3 +16,4 @@ export * from './course.js';
 export * from './flashcard.js';
 export * from './explore.js';
 export * from './progress.js';
+export * from './speech.js';

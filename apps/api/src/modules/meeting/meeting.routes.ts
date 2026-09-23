@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  MeetingTranscribeAudioInput,
   RecordingControlInput,
   ScheduleMeetingInput,
   StartRecordingInput,
@@ -8,6 +9,7 @@ import {
 import { meetingController } from './meeting.controller.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
+import { speechLimiter } from '../../middleware/rate-limit.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 
 export const meetingRouter = Router();
@@ -36,6 +38,15 @@ meetingRouter.post(
   '/:id/recording/control',
   validateBody(RecordingControlInput),
   asyncHandler(meetingController.controlRecording),
+);
+
+// Real STT on PROVIDED meeting audio (consent-gated; NOT live capture). Billable →
+// rate-limited like the speech endpoints.
+meetingRouter.post(
+  '/:id/transcribe',
+  speechLimiter,
+  validateBody(MeetingTranscribeAudioInput),
+  asyncHandler(meetingController.transcribeAudio),
 );
 
 // Privacy controls: delete stored recording/transcript for a meeting.

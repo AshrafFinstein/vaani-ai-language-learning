@@ -21,10 +21,14 @@ import {
   createMeetingAnalysisProvider,
   createMeetingTranscriptProvider,
   type KnownParticipant,
+  type TranscriptSegmentInput,
 } from '@vaani/meeting';
+import type { MeetingDetailDTO as MeetingDetail } from '@vaani/types';
 import { prisma } from '../../prisma.js';
 import { ApiException } from '../../lib/errors.js';
 import { recordActivity } from '../../lib/activity.js';
+import { getSttProvider } from '../../lib/ai.js';
+import { decodeAudio } from '../speech/speech.service.js';
 
 // ── Mappers ─────────────────────────────────────────────────────────────────
 
@@ -367,14 +371,88 @@ export const meetingService = {
     await getOwnedMeeting(userId, meetingId);
     await prisma.transcript.deleteMany({ where: { meetingId } });
   },
+
+  /**
+   * Runs REAL speech-to-text on PROVIDED meeting audio, then feeds the transcript into
+   * the existing analysis pipeline. This is NOT live capture — the caller supplies an
+   * already-recorded file. Consent is enforced: the meeting must have transcription
+   * enabled AND a recording session that granted transcript consent (CLAUDE.md §13).
+   * Live/covert capture remains deferred (CLAUDE.md §14).
+   */
+  async transcribeProvidedAudio(
+    userId: string,
+    meetingId: string,
+    audio: string,
+    languageCode?: string,
+  ): Promise<MeetingDetail> {
+    const meeting = await getOwnedMeeting(userId, meetingId);
+
+    if (!meeting.transcriptionEnabled) {
+      throw ApiException.forbidden('Transcription is not enabled for this meeting');
+    }
+    if (!meeting.recording?.transcriptConsent) {
+      throw ApiException.forbidden('Transcript consent is required to transcribe meeting audio');
+    }
+
+    const stt = getSttProvider();
+    const { text } = await stt.transcribe(decodeAudio(audio), languageCode);
+    if (!text.trim()) {
+      throw ApiException.badRequest('No speech could be transcribed from the provided audio');
+    }
+
+    // A single-speaker segment: the STT provider returns plain text, so we cannot
+    // fabricate diarization/speaker attribution — the analyzer sees the text as-is.
+    const segments: TranscriptSegmentInput[] = [
+      {
+        speakerLabel: meeting.participants[0]?.speakerLabel ?? 'Speaker 1',
+        text: text.trim(),
+        startMs: 0,
+        endMs: 0,
+      },
+    ];
+
+    if (meeting.aiAnalysisEnabled) {
+      await runAnalysis(meeting, { segments, language: languageCode ?? 'en' });
+    } else {
+      // Persist just the transcript when analysis is disabled, replacing any prior run.
+      await prisma.$transaction(async (tx) => {
+        await tx.transcript.deleteMany({ where: { meetingId } });
+        await tx.transcript.create({
+          data: {
+            meetingId,
+            language: languageCode ?? 'en',
+            segments: {
+              create: segments.map((s, i) => ({
+                speakerLabel: s.speakerLabel,
+                text: s.text,
+                startMs: s.startMs,
+                endMs: s.endMs,
+                ordinal: i,
+              })),
+            },
+          },
+        });
+      });
+    }
+
+    return toDetailDTO(await getOwnedMeeting(userId, meetingId));
+  },
 };
 
 /**
- * Runs the MOCK analysis pipeline for a meeting: generate a transcript, analyze
- * it, and persist the transcript + summary + decisions + action items. Existing
- * analysis for the meeting is replaced so re-running is idempotent.
+ * Runs the analysis pipeline for a meeting: obtain a transcript, analyze it, and
+ * persist the transcript + summary + decisions + action items. Existing analysis for
+ * the meeting is replaced so re-running is idempotent.
+ *
+ * When `providedSegments` is passed (real STT on PROVIDED audio), those segments are
+ * used verbatim; otherwise the deterministic MOCK transcript generator supplies them.
+ * Either way the analyzer only ever sees transcript evidence — it never invents
+ * participants/owners/decisions (CLAUDE.md §15).
  */
-async function runAnalysis(meeting: MeetingWithRelations): Promise<void> {
+async function runAnalysis(
+  meeting: MeetingWithRelations,
+  provided?: { segments: TranscriptSegmentInput[]; language: string },
+): Promise<void> {
   await prisma.meeting.update({
     where: { id: meeting.id },
     data: { analysisStatus: 'PROCESSING' },
@@ -389,11 +467,17 @@ async function runAnalysis(meeting: MeetingWithRelations): Promise<void> {
       speakerLabel: p.speakerLabel,
     }));
 
-    const transcriptProvider = createMeetingTranscriptProvider();
-    const { segments, language } = await transcriptProvider.generate({
-      meetingTitle: meeting.title,
-      knownParticipants,
-    });
+    let segments: TranscriptSegmentInput[];
+    let language: string;
+    if (provided) {
+      ({ segments, language } = provided);
+    } else {
+      const transcriptProvider = createMeetingTranscriptProvider();
+      ({ segments, language } = await transcriptProvider.generate({
+        meetingTitle: meeting.title,
+        knownParticipants,
+      }));
+    }
 
     const analyzer = createMeetingAnalysisProvider();
     const analysis = await analyzer.analyze({

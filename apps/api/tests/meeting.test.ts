@@ -133,3 +133,29 @@ describe('POST /api/meetings/:id/recording/start (consent enforcement)', () => {
     expect(res.body.data.recording).toMatchObject({ state: 'RECORDING', recordingConsent: true });
   });
 });
+
+describe('POST /api/meetings/:id/transcribe (real STT on provided audio)', () => {
+  const AUDIO = `data:audio/webm;base64,${Buffer.from('fake-audio').toString('base64')}`;
+
+  it('requires authentication', async () => {
+    const res = await request(app).post('/api/meetings/m_1/transcribe').send({ audio: AUDIO });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a missing audio payload with 422 validation', async () => {
+    const res = await request(app)
+      .post('/api/meetings/m_1/transcribe')
+      .set('Cookie', COOKIE)
+      .send({});
+    expect(res.status).toBe(422);
+  });
+
+  it('forbids transcription when the meeting has it disabled / no transcript consent', async () => {
+    // The mocked meeting has transcriptionEnabled=false and transcriptConsent=false → 403.
+    const res = await request(app)
+      .post('/api/meetings/m_1/transcribe')
+      .set('Cookie', COOKIE)
+      .send({ audio: AUDIO });
+    expect(res.status).toBe(403);
+  });
+});
