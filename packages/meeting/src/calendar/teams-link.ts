@@ -11,14 +11,18 @@
 /**
  * Derives the Teams thread id from a join URL when present (never invented).
  *
- * Matches both the plain `19:meeting_…@thread.v2` form and the URL-encoded
- * `19%3ameeting_…%40thread.v2` form, so it works for `/l/chat/`, `/l/meetup-join/`, and
- * `/l/meeting/` links alike. Returns the decoded id, or null when none is present.
+ * Handles the colon and `@` in either plain or URL-encoded form (and any mix of the two),
+ * so `19:meeting_…@thread.v2`, `19%3ameeting_…%40thread.v2`, and mixed real-invite forms
+ * like `19%3ameeting_…@thread.v2` all match — across `/l/chat/`, `/l/meetup-join/`, and
+ * `/l/meeting/` links. Returns the canonical `19:meeting_…@thread.v2` id, or null.
  */
 export function teamsMeetingIdFromJoinUrl(joinUrl: string | null): string | null {
   if (!joinUrl) return null;
-  const match = joinUrl.match(/19%3ameeting_[^%/]+%40thread\.v2|19:meeting_[^/]+@thread\.v2/i);
-  return match ? decodeURIComponent(match[0]) : null;
+  // 19(:|%3a) meeting_<id> (@|%40) thread.v2 — id body is lazy and stops at the terminator.
+  const match = joinUrl.match(/19(?:%3a|:)meeting_[^/?#\s]+?(?:%40|@)thread\.v2/i);
+  if (!match) return null;
+  // Normalize just the delimiters to the canonical form (avoids decoding the id body).
+  return match[0].replace(/%3a/gi, ':').replace(/%40/gi, '@');
 }
 
 /** The result of parsing a pasted Teams link: the URL passthrough + derived id. */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Users } from 'lucide-react';
+import { ArrowLeft, Users, Video } from 'lucide-react';
 import { MEETING_PROVIDERS } from '@vaani/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,13 @@ export default function MeetingDetailPage() {
             {new Date(meeting.scheduledEnd).toLocaleTimeString()} · {providerLabel(meeting.provider)}
           </p>
         </div>
+        {meeting.joinUrl && (
+          <Button asChild variant="gradient" className="ml-auto shrink-0">
+            <a href={meeting.joinUrl} target="_blank" rel="noopener noreferrer">
+              <Video className="h-4 w-4" /> Join meeting
+            </a>
+          </Button>
+        )}
       </div>
 
       <Card>

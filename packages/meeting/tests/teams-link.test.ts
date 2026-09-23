@@ -28,6 +28,23 @@ describe('parseTeamsLink — derives the Teams meeting id from a pasted join URL
     });
   });
 
+  it('handles mixed encoding (encoded colon, literal @) from real invite URLs', () => {
+    const url =
+      'https://teams.microsoft.com/l/meetup-join/19%3ameeting_MixEnc123@thread.v2/0?context=%7b%7d';
+    expect(parseTeamsLink(url)).toEqual({
+      joinUrl: url,
+      teamsMeetingId: '19:meeting_MixEnc123@thread.v2',
+    });
+  });
+
+  it('handles the reverse mix (literal colon, encoded @)', () => {
+    const url = 'https://teams.microsoft.com/l/meetup-join/19:meeting_RevMix%40thread.v2';
+    expect(parseTeamsLink(url)).toEqual({
+      joinUrl: url,
+      teamsMeetingId: '19:meeting_RevMix@thread.v2',
+    });
+  });
+
   it('returns a null id (join URL passthrough) for a non-Teams URL', () => {
     const url = 'https://example.com/some/other/link';
     expect(parseTeamsLink(url)).toEqual({ joinUrl: url, teamsMeetingId: null });
