@@ -24,6 +24,8 @@ RUN npm ci
 # ── build: generate the Prisma client against the schema ─────────────────────
 FROM deps AS build
 WORKDIR /app
+# openssl lets Prisma detect the right engine (linux-musl-openssl-3.0.x on Alpine).
+RUN apk add --no-cache openssl
 COPY prisma ./prisma
 RUN npx prisma generate --schema prisma/schema.prisma
 
@@ -31,6 +33,8 @@ RUN npx prisma generate --schema prisma/schema.prisma
 FROM node:20-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
+# Prisma's query engine needs the OpenSSL 3 runtime lib (libssl.so.3).
+RUN apk add --no-cache openssl
 
 # Bring node_modules (incl. the generated @prisma/client) from the build stage.
 COPY --from=build /app/node_modules ./node_modules
@@ -38,6 +42,8 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY packages ./packages
 COPY apps/api ./apps/api
+# Root tsconfig that the workspace tsconfigs extend (tsx reads it at runtime).
+COPY tsconfig.base.json ./
 
 # Run as the built-in non-root user.
 USER node

@@ -1,0 +1,12 @@
+# Caddy reverse proxy — automatic HTTPS (Let's Encrypt) in front of the web container.
+# Used by docker-compose.tls.yml. DOMAIN + TLS_EMAIL come from .env.prod.
+{
+	email {$TLS_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+	# Terminate TLS here, forward to the nginx web container (which serves the SPA
+	# and proxies /api → the API). Same-origin, so cookies keep working over HTTPS.
+	reverse_proxy web:80
+}
