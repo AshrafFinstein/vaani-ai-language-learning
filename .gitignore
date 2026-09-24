@@ -163,3 +163,6 @@ tools/**/dist/
 tools/**/__pycache__/
 tools/**/*.wav
 *.spec
+
+# ...but DO track the committable prod template (no secrets)
+!.env.prod.example
