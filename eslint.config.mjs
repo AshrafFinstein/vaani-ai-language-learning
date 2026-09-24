@@ -14,6 +14,8 @@ export default [
       '**/coverage/**',
       '**/node_modules/**',
       '**/.vite/**',
+      '**/.venv/**',
+      'tools/**',
       'prisma/migrations/**',
       '**/*.config.js',
       '**/*.config.ts',
