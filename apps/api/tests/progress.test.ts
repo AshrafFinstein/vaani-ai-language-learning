@@ -8,7 +8,10 @@ import request from 'supertest';
  * and achievements endpoints.
  */
 vi.mock('../src/prisma.js', () => {
-  const now = new Date('2026-09-22T12:00:00Z');
+  // Anchor to the REAL run date (not a fixed calendar day) so the streak/weekly
+  // assertions stay valid across day boundaries — the service computes against the
+  // real "today", so the fixture's day(0) must also be the real today.
+  const now = new Date();
   const day = (offset: number) => new Date(now.getTime() + offset * 86_400_000);
 
   // Activity across today, yesterday, and two days ago (a 3-day streak).

@@ -11,18 +11,24 @@
 /**
  * Derives the Teams thread id from a join URL when present (never invented).
  *
- * Handles the colon and `@` in either plain or URL-encoded form (and any mix of the two),
- * so `19:meeting_…@thread.v2`, `19%3ameeting_…%40thread.v2`, and mixed real-invite forms
- * like `19%3ameeting_…@thread.v2` all match — across `/l/chat/`, `/l/meetup-join/`, and
- * `/l/meeting/` links. Returns the canonical `19:meeting_…@thread.v2` id, or null.
+ * Recognizes two link families:
+ *  1. Classic thread links (`/l/chat/`, `/l/meetup-join/`, `/l/meeting/`) carrying a
+ *     `19:meeting_…@thread.v2` id — in plain, URL-encoded (`19%3ameeting_…%40thread.v2`),
+ *     or mixed form. Returns the canonical `19:meeting_…@thread.v2`.
+ *  2. Newer short "meet" links (`teams.microsoft.com/meet/<code>?p=<passcode>`). Returns the
+ *     numeric meeting code (the `?p=` passcode is a secret and is NEVER part of the id).
+ *
+ * The id is only ever derived from the URL, never invented; returns null otherwise.
  */
 export function teamsMeetingIdFromJoinUrl(joinUrl: string | null): string | null {
   if (!joinUrl) return null;
-  // 19(:|%3a) meeting_<id> (@|%40) thread.v2 — id body is lazy and stops at the terminator.
-  const match = joinUrl.match(/19(?:%3a|:)meeting_[^/?#\s]+?(?:%40|@)thread\.v2/i);
-  if (!match) return null;
-  // Normalize just the delimiters to the canonical form (avoids decoding the id body).
-  return match[0].replace(/%3a/gi, ':').replace(/%40/gi, '@');
+  // 1. Classic thread id — 19(:|%3a) meeting_<id> (@|%40) thread.v2 (lazy body).
+  const thread = joinUrl.match(/19(?:%3a|:)meeting_[^/?#\s]+?(?:%40|@)thread\.v2/i);
+  if (thread) return thread[0].replace(/%3a/gi, ':').replace(/%40/gi, '@');
+  // 2. Short "meet" link — teams.microsoft.com/meet/<numeric code> (ignore the ?p passcode).
+  const meet = joinUrl.match(/teams\.microsoft\.com\/meet\/(\d+)/i);
+  if (meet) return meet[1] ?? null;
+  return null;
 }
 
 /** The result of parsing a pasted Teams link: the URL passthrough + derived id. */

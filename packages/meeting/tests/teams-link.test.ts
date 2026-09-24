@@ -45,6 +45,15 @@ describe('parseTeamsLink — derives the Teams meeting id from a pasted join URL
     });
   });
 
+  it('extracts the code from a newer short /meet/<code> link (ignores the passcode)', () => {
+    // Fake code + passcode — never a real meeting secret.
+    const url = 'https://teams.microsoft.com/meet/12345678901234?p=FAKEpasscode00';
+    expect(parseTeamsLink(url)).toEqual({
+      joinUrl: url,
+      teamsMeetingId: '12345678901234',
+    });
+  });
+
   it('returns a null id (join URL passthrough) for a non-Teams URL', () => {
     const url = 'https://example.com/some/other/link';
     expect(parseTeamsLink(url)).toEqual({ joinUrl: url, teamsMeetingId: null });
