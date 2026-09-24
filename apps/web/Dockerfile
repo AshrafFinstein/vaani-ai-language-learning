@@ -18,6 +18,9 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN npm ci
 
+# Root tsconfig that packages/config/*.json and apps/web/tsconfig.json extend
+# (esbuild/vite resolves the `extends` chain at build time).
+COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN npm run build --workspace @vaani/web

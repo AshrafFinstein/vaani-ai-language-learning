@@ -6,6 +6,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" for local dev; the musl+openssl-3 target is for the Alpine Docker image
+  // (node:20-alpine ships OpenSSL 3, so the default openssl-1.1 engine won't load).
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
