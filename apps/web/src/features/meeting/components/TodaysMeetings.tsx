@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarSearch, RefreshCw } from 'lucide-react';
 import type { MeetingSummaryListDTO } from '@vaani/types';
@@ -48,9 +48,16 @@ export function TodaysMeetings() {
   const tick = useSchedulerTick();
   const now = useNow();
 
-  const todays = (meetings ?? [])
+  const all = meetings ?? [];
+  const todays = all
     .filter((m) => isToday(m.scheduledStart, now))
     .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
+  // Upcoming = future meetings on a later day (not today) that haven't ended.
+  const upcoming = all
+    .filter((m) => !isToday(m.scheduledStart, now) && new Date(m.scheduledEnd).getTime() >= now.getTime())
+    .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
+
+  const empty = todays.length === 0 && upcoming.length === 0;
 
   return (
     <div className="space-y-4">
@@ -79,27 +86,77 @@ export function TodaysMeetings() {
             Loading meetings…
           </CardContent>
         </Card>
-      ) : todays.length === 0 ? (
+      ) : empty ? (
         <Card>
           <CardContent className="space-y-3 py-10 text-center">
-            <p className="text-sm text-muted-foreground">No meetings today.</p>
+            <p className="text-sm text-muted-foreground">No meetings today or upcoming.</p>
+            <p className="text-xs text-muted-foreground">
+              Scheduled a meeting for another day? It shows under Upcoming here and in{' '}
+              <Link to="/app/meetings" className="underline">
+                all meetings
+              </Link>
+              .
+            </p>
             <Button variant="outline" size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
               Sync your calendar
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-3">
-          {todays.map((m) => (
-            <MeetingRow key={m.id} meeting={m} now={now} />
-          ))}
-        </ul>
+        <div className="space-y-6">
+          <Section title="Today" empty="No meetings today.">
+            {todays.map((m) => (
+              <MeetingRow key={m.id} meeting={m} now={now} today />
+            ))}
+          </Section>
+          {upcoming.length > 0 && (
+            <Section title="Upcoming">
+              {upcoming.map((m) => (
+                <MeetingRow key={m.id} meeting={m} now={now} today={false} />
+              ))}
+            </Section>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function MeetingRow({ meeting, now }: { meeting: MeetingSummaryListDTO; now: Date }) {
+function Section({
+  title,
+  empty,
+  children,
+}: {
+  title: string;
+  empty?: string;
+  children: ReactNode[];
+}) {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      {children.length === 0 ? (
+        empty ? <p className="text-sm text-muted-foreground">{empty}</p> : null
+      ) : (
+        <ul className="space-y-3">{children}</ul>
+      )}
+    </div>
+  );
+}
+
+function MeetingRow({
+  meeting,
+  now,
+  today,
+}: {
+  meeting: MeetingSummaryListDTO;
+  now: Date;
+  today: boolean;
+}) {
+  const start = new Date(meeting.scheduledStart);
+  const time = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const when = today
+    ? `${time} · ${countdownLabel(meeting.scheduledStart, meeting.scheduledEnd, now)}`
+    : `${start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · ${time}`;
   return (
     <li>
       <Link to={`/app/meetings/${meeting.id}`} className="block">
@@ -107,13 +164,7 @@ function MeetingRow({ meeting, now }: { meeting: MeetingSummaryListDTO; now: Dat
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div className="min-w-0">
               <p className="truncate font-medium">{meeting.title}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(meeting.scheduledStart).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}{' '}
-                · {countdownLabel(meeting.scheduledStart, meeting.scheduledEnd, now)}
-              </p>
+              <p className="text-xs text-muted-foreground">{when}</p>
             </div>
             <MeetingStatusBadge status={meeting.status} />
           </CardContent>
