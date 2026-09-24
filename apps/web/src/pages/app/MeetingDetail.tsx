@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Users } from 'lucide-react';
+import { ArrowLeft, Users, Video } from 'lucide-react';
 import { MEETING_PROVIDERS } from '@vaani/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useMeeting } from '@/features/meeting/useMeetings';
 import { RecordingControls } from '@/features/meeting/components/RecordingControls';
 import { MeetingAnalysis } from '@/features/meeting/components/MeetingAnalysis';
+import { MeetingUpload } from '@/features/meeting/components/MeetingUpload';
 import { PrivacyPanel } from '@/features/meeting/components/PrivacyPanel';
 
 type Tab = 'analysis' | 'recording' | 'privacy';
@@ -56,6 +57,13 @@ export default function MeetingDetailPage() {
             {new Date(meeting.scheduledEnd).toLocaleTimeString()} · {providerLabel(meeting.provider)}
           </p>
         </div>
+        {meeting.joinUrl && (
+          <Button asChild variant="gradient" className="ml-auto shrink-0">
+            <a href={meeting.joinUrl} target="_blank" rel="noopener noreferrer">
+              <Video className="h-4 w-4" /> Join meeting
+            </a>
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -97,7 +105,10 @@ export default function MeetingDetailPage() {
 
       {tab === 'analysis' && <MeetingAnalysis meeting={meeting} />}
       {tab === 'recording' && (
-        <RecordingControls meetingId={meeting.id} recording={meeting.recording} />
+        <div className="space-y-5">
+          <RecordingControls meetingId={meeting.id} recording={meeting.recording} />
+          <MeetingUpload meeting={meeting} />
+        </div>
       )}
       {tab === 'privacy' && <PrivacyPanel meetingId={meeting.id} />}
     </div>

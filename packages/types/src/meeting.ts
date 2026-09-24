@@ -22,6 +22,22 @@ export type MeetingProvider = z.infer<typeof MeetingProvider>;
 export const RecordingState = z.enum(['IDLE', 'RECORDING', 'PAUSED', 'STOPPED']);
 export type RecordingState = z.infer<typeof RecordingState>;
 
+/**
+ * The meeting lifecycle state machine (Meeting AI automation). Transitions are
+ * validated server-side; illegal jumps are rejected. `CAPTURING` models capture
+ * *state* only — real local/AVD capture stays deferred and is consent-gated.
+ */
+export const MeetingStatus = z.enum([
+  'SCHEDULED',
+  'NOTIFIED',
+  'STARTED',
+  'CAPTURING',
+  'PROCESSING',
+  'COMPLETED',
+  'CANCELLED',
+]);
+export type MeetingStatus = z.infer<typeof MeetingStatus>;
+
 /** Whether the (mock) analysis pipeline has run for a meeting. */
 export const AnalysisStatus = z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']);
 export type AnalysisStatus = z.infer<typeof AnalysisStatus>;
@@ -60,6 +76,18 @@ export const ScheduleMeetingInput = z
     startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm'),
     endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm'),
     provider: MeetingProvider.default('TEAMS'),
+    /**
+     * Optional Teams meeting invite link. When supplied, the API stores it on the
+     * meeting and derives the `teamsMeetingId` from it (never inventing one). This is the
+     * locked-down AVD path: the user has the link even without calendar/Graph access.
+     * Trimmed; an empty string is treated as omitted (→ undefined).
+     */
+    joinUrl: z
+      .string()
+      .trim()
+      .url('Enter a valid http(s) meeting link')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     participants: z.array(ScheduleParticipantInput).default([]),
     recordingEnabled: z.boolean().default(false),
     transcriptionEnabled: z.boolean().default(false),
@@ -109,8 +137,23 @@ export const MeetingSummaryDTO = z.object({
   risks: z.array(z.string()).default([]),
   questions: z.array(z.string()).default([]),
   nextSteps: z.array(z.string()).default([]),
+  /** Important topics distilled from the transcript (never fabricated, CLAUDE.md §15). */
+  importantTopics: z.array(z.string()).default([]),
 });
 export type MeetingSummaryDTO = z.infer<typeof MeetingSummaryDTO>;
+
+/**
+ * A distinct question raised during the meeting. `askedBy` is `Unassigned` when the
+ * speaker maps to no known participant; `answered` reflects explicit evidence only.
+ */
+export const QuestionDTO = z.object({
+  id: z.string(),
+  ordinal: z.number().int(),
+  text: z.string(),
+  askedBy: z.string(),
+  answered: z.boolean(),
+});
+export type QuestionDTO = z.infer<typeof QuestionDTO>;
 
 export const TranscriptSegmentDTO = z.object({
   id: z.string(),
@@ -126,6 +169,8 @@ export const MeetingAnalysisDTO = z.object({
   summary: MeetingSummaryDTO,
   decisions: z.array(DecisionDTO).default([]),
   actionItems: z.array(ActionItemDTO).default([]),
+  /** Distinct questions raised, extracted from the transcript (never invented). */
+  questions: z.array(QuestionDTO).default([]),
   /** Participants the analyzer could *derive from the transcript* (never invented). */
   participants: z.array(ParticipantDTO).default([]),
 });
@@ -154,6 +199,15 @@ export const MeetingDTO = z.object({
   transcriptionEnabled: z.boolean(),
   aiAnalysisEnabled: z.boolean(),
   analysisStatus: AnalysisStatus,
+  /** Lifecycle state (SCHEDULED…COMPLETED/CANCELLED). Drives the automation UI. */
+  status: MeetingStatus,
+  /** Calendar linkage (populated by calendar sync; null for manual meetings). */
+  teamsMeetingId: z.string().nullable(),
+  joinUrl: z.string().nullable(),
+  externalCalendarId: z.string().nullable(),
+  notifiedAt: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -174,6 +228,7 @@ export const MeetingDetailDTO = MeetingDTO.extend({
   summary: MeetingSummaryDTO.nullable(),
   decisions: z.array(DecisionDTO),
   actionItems: z.array(ActionItemDTO),
+  questions: z.array(QuestionDTO),
   transcriptSegments: z.array(TranscriptSegmentDTO),
 });
 export type MeetingDetailDTO = z.infer<typeof MeetingDetailDTO>;
@@ -196,7 +251,11 @@ export const RecordingControlInput = z.object({
 });
 export type RecordingControlInput = z.infer<typeof RecordingControlInput>;
 
-/** Per-user privacy defaults for meeting recording/transcription. */
+/**
+ * Per-user privacy + automation defaults for Meeting Intelligence. The capture and
+ * `autoCapture` flags govern the (deferred, consent-gated) local capture path;
+ * `askBeforeCapture` defaults true so capture is never covert (CLAUDE.md §13–14).
+ */
 export const MeetingPrivacySettings = z.object({
   recordingConsent: z.boolean().default(false),
   transcriptConsent: z.boolean().default(false),
@@ -204,11 +263,164 @@ export const MeetingPrivacySettings = z.object({
   autoTranscribe: z.boolean().default(false),
   /** Days to retain recordings/transcripts before eligible for deletion. */
   retentionDays: z.number().int().min(1).max(3650).default(30),
+  // ── Automation ────────────────────────────────────────────────────────────
+  /** Master switch for calendar-driven automatic capture (consent-gated). */
+  autoCapture: z.boolean().default(false),
+  /** Minutes before start to notify (reminder window). */
+  reminderMinutes: z.number().int().min(0).max(1440).default(10),
+  captureAudio: z.boolean().default(false),
+  captureTranscript: z.boolean().default(false),
+  captureSpeaker: z.boolean().default(false),
+  /** Ask before any local capture starts — default true (never covert). */
+  askBeforeCapture: z.boolean().default(true),
+  extractSummary: z.boolean().default(true),
+  extractDecisions: z.boolean().default(true),
+  extractActionItems: z.boolean().default(true),
+  extractQuestions: z.boolean().default(true),
+  extractTopics: z.boolean().default(true),
 });
 export type MeetingPrivacySettings = z.infer<typeof MeetingPrivacySettings>;
 
 export const UpdatePrivacySettingsInput = MeetingPrivacySettings.partial();
 export type UpdatePrivacySettingsInput = z.infer<typeof UpdatePrivacySettingsInput>;
+
+// ── Notifications (in-app only; push/desktop deferred) ────────────────────────
+
+export const NotificationType = z.enum([
+  'MEETING_REMINDER',
+  'MEETING_STARTED',
+  'ANALYSIS_READY',
+]);
+export type NotificationType = z.infer<typeof NotificationType>;
+
+export const NotificationDTO = z.object({
+  id: z.string(),
+  type: NotificationType,
+  title: z.string(),
+  body: z.string(),
+  meetingId: z.string().nullable(),
+  readAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type NotificationDTO = z.infer<typeof NotificationDTO>;
+
+export const NotificationListDTO = z.object({
+  notifications: z.array(NotificationDTO),
+  unreadCount: z.number().int(),
+});
+export type NotificationListDTO = z.infer<typeof NotificationListDTO>;
+
+// ── Calendar sync (real Outlook read-only when configured; Mock default) ──────
+
+/** Which calendar backend is active — surfaced so the UI can show connection status. */
+export const CalendarProviderKind = z.enum(['mock', 'outlook', 'ics']);
+export type CalendarProviderKind = z.infer<typeof CalendarProviderKind>;
+
+/** A normalized calendar event (provider-agnostic). Read-only — Vaani never writes back. */
+export const CalendarEventDTO = z.object({
+  /** External calendar (Graph) event id — the idempotency key for sync. */
+  externalCalendarId: z.string(),
+  title: z.string(),
+  start: z.string(),
+  end: z.string(),
+  joinUrl: z.string().nullable(),
+  teamsMeetingId: z.string().nullable(),
+  organizer: z
+    .object({ name: z.string(), email: z.string().nullable() })
+    .nullable(),
+  attendees: z.array(z.object({ name: z.string(), email: z.string().nullable() })).default([]),
+});
+export type CalendarEventDTO = z.infer<typeof CalendarEventDTO>;
+
+/** Calendar connection status surfaced in Settings (read-only). */
+export const CalendarStatusDTO = z.object({
+  provider: CalendarProviderKind,
+  /** True when the active provider is a real (Outlook) connection with a token. */
+  connected: z.boolean(),
+  readOnly: z.literal(true),
+});
+export type CalendarStatusDTO = z.infer<typeof CalendarStatusDTO>;
+
+/** Body for a calendar sync request — an optional window (defaults applied server-side). */
+export const CalendarSyncInput = z.object({
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type CalendarSyncInput = z.infer<typeof CalendarSyncInput>;
+
+export const CalendarSyncResultDTO = z.object({
+  provider: CalendarProviderKind,
+  created: z.number().int(),
+  updated: z.number().int(),
+  meetings: z.array(MeetingDTO),
+});
+export type CalendarSyncResultDTO = z.infer<typeof CalendarSyncResultDTO>;
+
+// ── ICS calendar (admin-free AVD path: published feed URL + .ics file import) ──
+
+/**
+ * Sets the user's published Outlook/Teams ICS feed URL and triggers a sync. This is the
+ * admin-free alternative to Microsoft Graph — no Azure app registration is required.
+ * The URL must be http(s) (or webcal, normalized server-side); an empty string CLEARS it.
+ */
+export const SetIcsCalendarInput = z.object({
+  url: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || /^(https?|webcal):\/\//i.test(v),
+      'Enter an http(s) or webcal ICS feed URL, or leave blank to disconnect',
+    ),
+  /** Optional sync window (defaults applied server-side). */
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type SetIcsCalendarInput = z.infer<typeof SetIcsCalendarInput>;
+
+/**
+ * Imports an uploaded `.ics` file: its raw text (optionally base64/data-URL wrapped) is
+ * parsed and upserted into local Meetings via the existing sync idempotency (UID key).
+ * No network — the content is supplied by the caller (drag-and-drop / file picker).
+ */
+export const ImportIcsFileInput = z.object({
+  /** Raw ICS text, or a `data:text/calendar;base64,…` / bare base64 payload. */
+  content: z.string().min(1, 'ICS file content is required').max(5_000_000, 'ICS file is too large'),
+  sinceIso: z.string().optional(),
+  untilIso: z.string().optional(),
+});
+export type ImportIcsFileInput = z.infer<typeof ImportIcsFileInput>;
+
+// ── Provided transcript → analysis (AVD capture story: drop a .vtt/plain text) ─
+
+/**
+ * Feeds a PROVIDED transcript (Teams `.vtt` or plain text) straight into the analysis
+ * pipeline — the AVD-friendly complement to the audio→Whisper route. Consent-gated: the
+ * meeting must have transcription enabled AND transcript consent granted (CLAUDE.md §13).
+ */
+export const ProvidedTranscriptInput = z.object({
+  /** Raw transcript text (a WebVTT document or plain text). */
+  content: z.string().min(1, 'Transcript content is required').max(5_000_000, 'Transcript is too large'),
+  /** How to interpret `content`. Defaults to auto-detect (`WEBVTT` header → vtt). */
+  format: z.enum(['vtt', 'text', 'auto']).default('auto'),
+  /** Optional BCP-47/ISO language hint, e.g. "en", "es". */
+  languageCode: z.string().min(2).max(10).optional(),
+});
+export type ProvidedTranscriptInput = z.infer<typeof ProvidedTranscriptInput>;
+
+// ── Scheduler tick (invoked via endpoint; injected `now` for determinism) ─────
+
+/** Optional injected `now` (ISO). Server defaults to the real clock when omitted. */
+export const SchedulerTickInput = z.object({
+  nowIso: z.string().optional(),
+});
+export type SchedulerTickInput = z.infer<typeof SchedulerTickInput>;
+
+export const SchedulerTickResultDTO = z.object({
+  notified: z.array(z.string()),
+  started: z.array(z.string()),
+  processing: z.array(z.string()),
+});
+export type SchedulerTickResultDTO = z.infer<typeof SchedulerTickResultDTO>;
 
 export interface MeetingProviderMeta {
   value: MeetingProvider;

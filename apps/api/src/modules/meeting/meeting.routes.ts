@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import {
+  CalendarSyncInput,
+  ImportIcsFileInput,
   MeetingTranscribeAudioInput,
+  ProvidedTranscriptInput,
   RecordingControlInput,
   ScheduleMeetingInput,
+  SchedulerTickInput,
+  SetIcsCalendarInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
@@ -23,6 +28,34 @@ meetingRouter.patch(
   validateBody(UpdatePrivacySettingsInput),
   asyncHandler(meetingController.updatePrivacySettings),
 );
+
+// Calendar sync (read-only) + scheduler tick + capture capability. Declared before
+// /:id so these literal segments aren't treated as meeting ids.
+meetingRouter.get('/calendar/status', asyncHandler(meetingController.calendarStatus));
+meetingRouter.post(
+  '/calendar/sync',
+  validateBody(CalendarSyncInput),
+  asyncHandler(meetingController.calendarSync),
+);
+// Admin-free ICS path: set a published feed URL (fetches remotely → rate-limited) and
+// import an uploaded .ics file (no network). Declared before /:id.
+meetingRouter.post(
+  '/calendar/ics',
+  speechLimiter,
+  validateBody(SetIcsCalendarInput),
+  asyncHandler(meetingController.setIcsCalendar),
+);
+meetingRouter.post(
+  '/calendar/import',
+  validateBody(ImportIcsFileInput),
+  asyncHandler(meetingController.importIcs),
+);
+meetingRouter.post(
+  '/scheduler/tick',
+  validateBody(SchedulerTickInput),
+  asyncHandler(meetingController.schedulerTick),
+);
+meetingRouter.get('/capture/capability', asyncHandler(meetingController.captureCapability));
 
 meetingRouter.get('/', asyncHandler(meetingController.list));
 meetingRouter.post('/', validateBody(ScheduleMeetingInput), asyncHandler(meetingController.schedule));
@@ -47,6 +80,14 @@ meetingRouter.post(
   speechLimiter,
   validateBody(MeetingTranscribeAudioInput),
   asyncHandler(meetingController.transcribeAudio),
+);
+
+// Ingest a PROVIDED transcript (.vtt / plain text) → analysis (consent-gated). No STT,
+// no network — the AVD-friendly complement to /transcribe.
+meetingRouter.post(
+  '/:id/transcript',
+  validateBody(ProvidedTranscriptInput),
+  asyncHandler(meetingController.ingestTranscript),
 );
 
 // Privacy controls: delete stored recording/transcript for a meeting.

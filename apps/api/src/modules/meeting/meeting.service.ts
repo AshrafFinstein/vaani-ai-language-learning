@@ -7,9 +7,12 @@ import {
   type MeetingDetailDTO,
   type MeetingDTO,
   type MeetingPrivacySettings,
+  type MeetingStatus,
   type MeetingSummaryDTO,
   type MeetingSummaryListDTO,
   type ParticipantDTO,
+  type ProvidedTranscriptInput,
+  type QuestionDTO,
   type RecordingAction,
   type RecordingSessionDTO,
   type ScheduleMeetingInput,
@@ -20,6 +23,8 @@ import {
 import {
   createMeetingAnalysisProvider,
   createMeetingTranscriptProvider,
+  parseTeamsLink,
+  parseVtt,
   type KnownParticipant,
   type TranscriptSegmentInput,
 } from '@vaani/meeting';
@@ -29,7 +34,9 @@ import { ApiException } from '../../lib/errors.js';
 import { recordActivity } from '../../lib/activity.js';
 import { recordAudit } from '../../lib/audit.js';
 import { getSttProvider } from '../../lib/ai.js';
-import { decodeAudio } from '../speech/speech.service.js';
+import { decodeAudio, resolveTranscribeOptions } from '../speech/speech.service.js';
+import { notificationService } from '../notification/notification.service.js';
+import { canTransition } from './meeting.lifecycle.js';
 
 // ── Mappers ─────────────────────────────────────────────────────────────────
 
@@ -43,6 +50,13 @@ function toMeetingDTO(m: {
   transcriptionEnabled: boolean;
   aiAnalysisEnabled: boolean;
   analysisStatus: string;
+  status: string;
+  teamsMeetingId: string | null;
+  joinUrl: string | null;
+  externalCalendarId: string | null;
+  notifiedAt: Date | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): MeetingDTO {
@@ -56,6 +70,13 @@ function toMeetingDTO(m: {
     transcriptionEnabled: m.transcriptionEnabled,
     aiAnalysisEnabled: m.aiAnalysisEnabled,
     analysisStatus: m.analysisStatus as MeetingDTO['analysisStatus'],
+    status: m.status as MeetingDTO['status'],
+    teamsMeetingId: m.teamsMeetingId,
+    joinUrl: m.joinUrl,
+    externalCalendarId: m.externalCalendarId,
+    notifiedAt: m.notifiedAt ? m.notifiedAt.toISOString() : null,
+    startedAt: m.startedAt ? m.startedAt.toISOString() : null,
+    endedAt: m.endedAt ? m.endedAt.toISOString() : null,
     createdAt: m.createdAt.toISOString(),
     updatedAt: m.updatedAt.toISOString(),
   };
@@ -98,6 +119,7 @@ type MeetingWithRelations = Prisma.MeetingGetPayload<{
     summary: true;
     decisions: true;
     actionItems: true;
+    questions: true;
     transcript: { include: { segments: true } };
   };
 }>;
@@ -110,8 +132,20 @@ function toDetailDTO(m: MeetingWithRelations): MeetingDetailDTO {
         risks: m.summary.risks,
         questions: m.summary.questions,
         nextSteps: m.summary.nextSteps,
+        importantTopics: m.summary.importantTopics,
       }
     : null;
+
+  const questions: QuestionDTO[] = m.questions
+    .slice()
+    .sort((a, b) => a.ordinal - b.ordinal)
+    .map((q) => ({
+      id: q.id,
+      ordinal: q.ordinal,
+      text: q.text,
+      askedBy: q.askedBy,
+      answered: q.answered,
+    }));
 
   const decisions: DecisionDTO[] = m.decisions.map((d) => ({
     id: d.id,
@@ -152,6 +186,7 @@ function toDetailDTO(m: MeetingWithRelations): MeetingDetailDTO {
     summary,
     decisions,
     actionItems,
+    questions,
     transcriptSegments,
   };
 }
@@ -164,6 +199,7 @@ const MEETING_INCLUDE = {
   summary: true,
   decisions: true,
   actionItems: true,
+  questions: true,
   transcript: { include: { segments: true } },
 } satisfies Prisma.MeetingInclude;
 
@@ -183,12 +219,40 @@ function combineDateTime(date: string, time: string): Date {
   return dt;
 }
 
+type MeetingSettingsRow = Prisma.MeetingSettingsGetPayload<Record<string, never>>;
+
+/** Maps a MeetingSettings row (or null) to the DTO, applying schema defaults. */
+function settingsToDTO(s: MeetingSettingsRow | null): MeetingPrivacySettings {
+  return {
+    recordingConsent: s?.recordingConsent ?? false,
+    transcriptConsent: s?.transcriptConsent ?? false,
+    autoRecord: s?.autoRecord ?? false,
+    autoTranscribe: s?.autoTranscribe ?? false,
+    retentionDays: s?.retentionDays ?? 30,
+    autoCapture: s?.autoCapture ?? false,
+    reminderMinutes: s?.reminderMinutes ?? 10,
+    captureAudio: s?.captureAudio ?? false,
+    captureTranscript: s?.captureTranscript ?? false,
+    captureSpeaker: s?.captureSpeaker ?? false,
+    askBeforeCapture: s?.askBeforeCapture ?? true,
+    extractSummary: s?.extractSummary ?? true,
+    extractDecisions: s?.extractDecisions ?? true,
+    extractActionItems: s?.extractActionItems ?? true,
+    extractQuestions: s?.extractQuestions ?? true,
+    extractTopics: s?.extractTopics ?? true,
+  };
+}
+
 // ── Service ─────────────────────────────────────────────────────────────────
 
 export const meetingService = {
   async schedule(userId: string, input: ScheduleMeetingInput): Promise<MeetingDTO> {
     const scheduledStart = combineDateTime(input.date, input.startTime);
     const scheduledEnd = combineDateTime(input.date, input.endTime);
+
+    // When a Teams link is pasted, store it and DERIVE the meeting id from it (never
+    // invented — null when the link is not a Teams meeting URL). Absent → both null.
+    const link = input.joinUrl ? parseTeamsLink(input.joinUrl) : null;
 
     const meeting = await prisma.meeting.create({
       data: {
@@ -197,6 +261,8 @@ export const meetingService = {
         provider: input.provider,
         scheduledStart,
         scheduledEnd,
+        joinUrl: link?.joinUrl ?? null,
+        teamsMeetingId: link?.teamsMeetingId ?? null,
         recordingEnabled: input.recordingEnabled,
         transcriptionEnabled: input.transcriptionEnabled,
         aiAnalysisEnabled: input.aiAnalysisEnabled,
@@ -346,15 +412,48 @@ export const meetingService = {
     return toRecordingDTO(stopped);
   },
 
+  /**
+   * Applies a validated lifecycle transition (Meeting AI automation). Illegal jumps
+   * are rejected (409). Sets the matching timestamp (notifiedAt/startedAt/endedAt) and,
+   * for PROCESSING→COMPLETED, runs the analysis pipeline. `now` is injected for tests.
+   */
+  async transitionStatus(
+    userId: string,
+    meetingId: string,
+    to: MeetingStatus,
+    now: Date = new Date(),
+  ): Promise<MeetingDTO> {
+    const meeting = await getOwnedMeeting(userId, meetingId);
+    const from = meeting.status as MeetingStatus;
+    if (from === to) return toMeetingDTO(meeting);
+    if (!canTransition(from, to)) {
+      throw ApiException.conflict(`Illegal meeting status transition: ${from} → ${to}`);
+    }
+
+    // PROCESSING → COMPLETED runs the analysis pipeline (which itself sets COMPLETED
+    // once done). We record endedAt here and let runAnalysis finalize the status.
+    if (from === 'PROCESSING' && to === 'COMPLETED') {
+      if (meeting.aiAnalysisEnabled) {
+        await runAnalysis(meeting);
+      }
+      const updated = await prisma.meeting.update({
+        where: { id: meetingId },
+        data: { status: 'COMPLETED', endedAt: meeting.endedAt ?? now },
+      });
+      return toMeetingDTO(updated);
+    }
+
+    const data: Prisma.MeetingUpdateInput = { status: to };
+    if (to === 'NOTIFIED') data.notifiedAt = now;
+    if (to === 'STARTED') data.startedAt = now;
+    if (to === 'PROCESSING') data.endedAt = meeting.endedAt ?? now;
+    const updated = await prisma.meeting.update({ where: { id: meetingId }, data });
+    return toMeetingDTO(updated);
+  },
+
   async getPrivacySettings(userId: string): Promise<MeetingPrivacySettings> {
     const s = await prisma.meetingSettings.findUnique({ where: { userId } });
-    return {
-      recordingConsent: s?.recordingConsent ?? false,
-      transcriptConsent: s?.transcriptConsent ?? false,
-      autoRecord: s?.autoRecord ?? false,
-      autoTranscribe: s?.autoTranscribe ?? false,
-      retentionDays: s?.retentionDays ?? 30,
-    };
+    return settingsToDTO(s);
   },
 
   async updatePrivacySettings(
@@ -366,13 +465,7 @@ export const meetingService = {
       create: { userId, ...input },
       update: { ...input },
     });
-    return {
-      recordingConsent: s.recordingConsent,
-      transcriptConsent: s.transcriptConsent,
-      autoRecord: s.autoRecord,
-      autoTranscribe: s.autoTranscribe,
-      retentionDays: s.retentionDays,
-    };
+    return settingsToDTO(s);
   },
 
   /** Deletes the stored recording session metadata for a meeting (privacy control). */
@@ -402,6 +495,7 @@ export const meetingService = {
     meetingId: string,
     audio: string,
     languageCode?: string,
+    mimeType?: string,
   ): Promise<MeetingDetail> {
     const meeting = await getOwnedMeeting(userId, meetingId);
 
@@ -412,6 +506,11 @@ export const meetingService = {
       throw ApiException.forbidden('Transcript consent is required to transcribe meeting audio');
     }
 
+    // Resolve + validate the container (explicit mimeType or the data-URL prefix) BEFORE any
+    // work, so a clearly unsupported format is a clean 422. The hint carries the real format
+    // through to Whisper so an .mp4 recording is detected correctly (never mislabelled .webm).
+    const sttOptions = resolveTranscribeOptions(audio, mimeType);
+
     // Sensitive action: transcription of provided audio produces transcript content.
     // Log a reference only (never the audio or the resulting text).
     await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', meetingId, {
@@ -419,7 +518,7 @@ export const meetingService = {
     });
 
     const stt = getSttProvider();
-    const { text } = await stt.transcribe(decodeAudio(audio), languageCode);
+    const { text } = await stt.transcribe(decodeAudio(audio), languageCode, sttOptions);
     if (!text.trim()) {
       throw ApiException.badRequest('No speech could be transcribed from the provided audio');
     }
@@ -445,6 +544,92 @@ export const meetingService = {
           data: {
             meetingId,
             language: languageCode ?? 'en',
+            segments: {
+              create: segments.map((s, i) => ({
+                speakerLabel: s.speakerLabel,
+                text: s.text,
+                startMs: s.startMs,
+                endMs: s.endMs,
+                ordinal: i,
+              })),
+            },
+          },
+        });
+      });
+    }
+
+    return toDetailDTO(await getOwnedMeeting(userId, meetingId));
+  },
+
+  /**
+   * Feeds a PROVIDED transcript (Teams `.vtt` or plain text) straight into the analysis
+   * pipeline — the AVD-friendly complement to {@link transcribeProvidedAudio}. No STT is
+   * run; the caller supplies the transcript. Consent is enforced identically: the meeting
+   * must have transcription enabled AND transcript consent granted (CLAUDE.md §13). The
+   * analyzer only ever sees the supplied evidence — it never invents content (§15).
+   */
+  async ingestProvidedTranscript(
+    userId: string,
+    meetingId: string,
+    input: ProvidedTranscriptInput,
+  ): Promise<MeetingDetail> {
+    const meeting = await getOwnedMeeting(userId, meetingId);
+
+    if (!meeting.transcriptionEnabled) {
+      throw ApiException.forbidden('Transcription is not enabled for this meeting');
+    }
+    if (!meeting.recording?.transcriptConsent) {
+      throw ApiException.forbidden('Transcript consent is required to ingest a meeting transcript');
+    }
+
+    // Sensitive action: ingesting a provided transcript introduces transcript content.
+    // Log a reference only (never the transcript text).
+    await recordAudit(userId, 'TRANSCRIPT_ACCESS', 'TRANSCRIPT', meetingId, {
+      via: 'provided-transcript',
+    });
+
+    const isVtt =
+      input.format === 'vtt' ||
+      (input.format === 'auto' && /^\uFEFF?\s*WEBVTT/i.test(input.content));
+
+    let segments: TranscriptSegmentInput[];
+    if (isVtt) {
+      const parsed = parseVtt(input.content);
+      if (parsed.length === 0) {
+        throw ApiException.badRequest('No transcript segments could be parsed from the .vtt content');
+      }
+      segments = parsed.map((s) => ({
+        speakerLabel: s.speakerLabel,
+        text: s.text,
+        startMs: s.startMs,
+        endMs: s.endMs,
+      }));
+    } else {
+      const text = input.content.trim();
+      if (!text) throw ApiException.badRequest('The provided transcript is empty');
+      // Plain text has no diarization/timing — a single unattributed segment (never
+      // a fabricated speaker identity). The default speaker label ties to the analyzer.
+      segments = [
+        {
+          speakerLabel: meeting.participants[0]?.speakerLabel ?? 'Speaker 1',
+          text,
+          startMs: 0,
+          endMs: 0,
+        },
+      ];
+    }
+
+    const language = input.languageCode ?? 'en';
+    if (meeting.aiAnalysisEnabled) {
+      await runAnalysis(meeting, { segments, language });
+    } else {
+      // Persist just the transcript when analysis is disabled, replacing any prior run.
+      await prisma.$transaction(async (tx) => {
+        await tx.transcript.deleteMany({ where: { meetingId } });
+        await tx.transcript.create({
+          data: {
+            meetingId,
+            language,
             segments: {
               create: segments.map((s, i) => ({
                 speakerLabel: s.speakerLabel,
@@ -516,6 +701,7 @@ async function runAnalysis(
       await tx.meetingSummary.deleteMany({ where: { meetingId: meeting.id } });
       await tx.meetingDecision.deleteMany({ where: { meetingId: meeting.id } });
       await tx.actionItem.deleteMany({ where: { meetingId: meeting.id } });
+      await tx.meetingQuestion.deleteMany({ where: { meetingId: meeting.id } });
 
       await tx.transcript.create({
         data: {
@@ -541,8 +727,22 @@ async function runAnalysis(
           risks: analysis.summary.risks,
           questions: analysis.summary.questions,
           nextSteps: analysis.summary.nextSteps,
+          importantTopics: analysis.summary.importantTopics,
         },
       });
+
+      if (analysis.questions.length > 0) {
+        await tx.meetingQuestion.createMany({
+          data: analysis.questions.map((q) => ({
+            meetingId: meeting.id,
+            ordinal: q.ordinal,
+            text: q.text,
+            // Sentinel-preserving: never write a fabricated asker.
+            askedBy: q.askedBy || UNASSIGNED_OWNER,
+            answered: q.answered,
+          })),
+        });
+      }
 
       if (analysis.decisions.length > 0) {
         await tx.meetingDecision.createMany({
@@ -578,6 +778,13 @@ async function runAnalysis(
     });
     // Record the meeting activity for progress analytics (best-effort, post-commit).
     await recordActivity(meeting.userId, 'MEETING');
+    // Notify the user their analysis is ready (in-app; push/desktop deferred).
+    await notificationService.create(meeting.userId, {
+      type: 'ANALYSIS_READY',
+      title: 'Meeting analysis ready',
+      body: `The AI summary for "${meeting.title}" is ready to review.`,
+      meetingId: meeting.id,
+    });
   } catch (err) {
     await prisma.meeting.update({
       where: { id: meeting.id },

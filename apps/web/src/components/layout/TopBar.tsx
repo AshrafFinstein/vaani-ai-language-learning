@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Flame, Menu, Search } from 'lucide-react';
+import { Flame, Menu, Search } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { SidebarNav } from './SidebarNav';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { UserMenu } from './UserMenu';
+import { NotificationBell } from '@/features/notification/NotificationBell';
 import { useProgress } from '@/features/progress/useProgress';
 
 export function TopBar() {
@@ -58,10 +59,7 @@ export function TopBar() {
           <Flame className="h-3.5 w-3.5 text-orange-500" />
           <span className="tabular-nums">{streakDays}</span>
         </Badge>
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
-        </Button>
+        <NotificationBell />
         <UserMenu />
       </div>
     </header>

@@ -4,7 +4,7 @@ The v2 master plan renumbers phases and adds a Meeting Intelligence module. This
 **authoritative** mapping between the master-plan phase numbers, the repo's original
 `IMPLEMENTATION_PLAN.md` numbers, and actual status. Agent 0 keeps it current.
 
-_Last updated: 2026-09-22._
+_Last updated: 2026-09-23._
 
 | Master | Agent | Scope | Repo (old) | Status | Branch / commit |
 | ------ | ----- | ----- | ---------- | ------ | --------------- |
@@ -29,8 +29,13 @@ Notes:
   runs offline. Keys live only in local `.env` (never committed). Live Teams/AVD capture still deferred.
 - Repo old-Phase 9 (Subscriptions/usage limits) is not in the master plan; treat as optional/deferred.
 - ✅ **ALL PHASES COMPLETE (P1–P12)** on `develop` + Flashcards/Explore + real AI/speech.
-  Integration gate green: typecheck + lint + **211 tests** + build. E2E is a separate `npm run e2e`.
+  Integration gate green: typecheck + lint + **330 tests** + build (plus a CI `migrations` job:
+  migrate deploy + schema-drift check + idempotent seed on real Postgres). E2E is a separate `npm run e2e`.
 - `develop` integrates P1/P2 docs, P3–P12 features (Phase 2 profile merged as `0421ec5`).
-- Remaining/later work (not roadmap phases): live Teams/AVD meeting capture (consent + env validation),
+- **Gap-analysis fixes (2026-09-23):** web client now auto-refreshes expired access tokens (users
+  were silently logged out after 15 min); refresh rotation is atomic with reuse detection; login
+  timing no longer leaks account existence; `language` module gets a service (layering rule 6); CI
+  validates migrations against a real DB; README brought up to date.
+- Remaining/later work (not roadmap phases): password reset (forgot-password is still a stub), live Teams/AVD meeting capture (consent + env validation),
   voice mic/speaker device selection, a distinct server-side CALL activity kind, TLS/ingress, and
   centralized log/metric shipping. Optional: old-Phase 9 Subscriptions/usage limits.

@@ -151,3 +151,15 @@ reference/*.jpg
 reference/*.jpeg
 reference/*.gif
 reference/*.mp4
+
+# Playwright E2E artifacts
+apps/web/test-results/
+apps/web/playwright-report/
+
+# Python tooling (tools/*) — envs, build + recorded audio artifacts
+tools/**/.venv/
+tools/**/build/
+tools/**/dist/
+tools/**/__pycache__/
+tools/**/*.wav
+*.spec

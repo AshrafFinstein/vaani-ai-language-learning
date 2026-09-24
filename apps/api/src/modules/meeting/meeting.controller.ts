@@ -1,13 +1,21 @@
 import type { Request, Response } from 'express';
 import type {
+  CalendarSyncInput,
+  ImportIcsFileInput,
   MeetingTranscribeAudioInput,
+  ProvidedTranscriptInput,
   RecordingControlInput,
   ScheduleMeetingInput,
+  SchedulerTickInput,
+  SetIcsCalendarInput,
   StartRecordingInput,
   UpdatePrivacySettingsInput,
 } from '@vaani/types';
 import { ApiException } from '../../lib/errors.js';
 import { meetingService } from './meeting.service.js';
+import { calendarService } from './calendar.service.js';
+import { schedulerService } from './scheduler.service.js';
+import { getCaptureProvider } from '../../lib/calendar.js';
 
 function userId(req: Request): string {
   if (!req.auth) throw ApiException.unauthorized();
@@ -70,13 +78,82 @@ export const meetingController = {
 
   /** Runs real STT on PROVIDED meeting audio and feeds the analysis pipeline. */
   async transcribeAudio(req: Request, res: Response): Promise<void> {
-    const { audio, languageCode } = req.body as MeetingTranscribeAudioInput;
+    const { audio, languageCode, mimeType } = req.body as MeetingTranscribeAudioInput;
     const meeting = await meetingService.transcribeProvidedAudio(
       userId(req),
       req.params.id!,
       audio,
       languageCode,
+      mimeType,
     );
     res.status(200).json({ data: { meeting } });
+  },
+
+  // ── Calendar sync (read-only) ───────────────────────────────────────────────
+
+  /** Reports the active calendar backend + connection status (Mock vs Outlook vs ICS). */
+  async calendarStatus(req: Request, res: Response): Promise<void> {
+    const status = await calendarService.status(userId(req));
+    res.status(200).json({ data: { status } });
+  },
+
+  /** Syncs upcoming calendar events into local Meeting rows (idempotent). */
+  async calendarSync(req: Request, res: Response): Promise<void> {
+    const { sinceIso, untilIso } = req.body as CalendarSyncInput;
+    const result = await calendarService.sync(userId(req), sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  /** Sets the user's published ICS feed URL (admin-free path) and triggers a sync. */
+  async setIcsCalendar(req: Request, res: Response): Promise<void> {
+    const { url, sinceIso, untilIso } = req.body as SetIcsCalendarInput;
+    const result = await calendarService.setIcsUrl(userId(req), url, sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  /** Imports an uploaded `.ics` file into local Meetings (idempotent by UID). */
+  async importIcs(req: Request, res: Response): Promise<void> {
+    const { content, sinceIso, untilIso } = req.body as ImportIcsFileInput;
+    const result = await calendarService.importIcs(userId(req), content, sinceIso, untilIso);
+    res.status(200).json({ data: { result } });
+  },
+
+  /** Ingests a PROVIDED transcript (.vtt / plain text) → analysis (consent-gated). */
+  async ingestTranscript(req: Request, res: Response): Promise<void> {
+    const meeting = await meetingService.ingestProvidedTranscript(
+      userId(req),
+      req.params.id!,
+      req.body as ProvidedTranscriptInput,
+    );
+    res.status(200).json({ data: { meeting } });
+  },
+
+  // ── Scheduler tick (invoked; no always-on timer) ────────────────────────────
+
+  async schedulerTick(req: Request, res: Response): Promise<void> {
+    const { nowIso } = req.body as SchedulerTickInput;
+    const now = nowIso ? new Date(nowIso) : new Date();
+    if (Number.isNaN(now.getTime())) throw ApiException.badRequest('Invalid nowIso');
+    const result = await schedulerService.tick(userId(req), now);
+    res.status(200).json({ data: { result } });
+  },
+
+  // ── Capture (Local/AVD; state-only, real capture deferred) ──────────────────
+
+  /** Reports whether real local capture is available in this environment. */
+  async captureCapability(_req: Request, res: Response): Promise<void> {
+    const provider = getCaptureProvider();
+    const audioSupported = provider.isSupported();
+    res.status(200).json({
+      data: {
+        capability: {
+          audioSupported,
+          state: provider.getState(),
+          reason: audioSupported
+            ? undefined
+            : 'Live local/AVD audio capture is deferred in this environment. Provide already-recorded audio to the transcribe endpoint for real STT.',
+        },
+      },
+    });
   },
 };

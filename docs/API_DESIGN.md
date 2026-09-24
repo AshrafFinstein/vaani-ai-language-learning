@@ -71,7 +71,7 @@ are wrapped in `{ data: … }`; the key shown is the payload shape.
 | POST | `/register` | 🔓 | `RegisterInput` | `{ user: UserDTO }` (201) | Creates user+profile, issues cookies |
 | POST | `/login` | 🔓 | `LoginInput` | `{ user: UserDTO }` (200) | Uniform "invalid email or password" |
 | POST | `/logout` | 🔓 | — | `{ success: true }` | Revokes refresh session, clears cookies |
-| POST | `/refresh` | 🔓 (refresh cookie) | — | `{ user: UserDTO }` | Rotates the refresh session |
+| POST | `/refresh` | 🔓 (refresh cookie) | — | `{ user: UserDTO }` | Rotates the refresh session; reusing an old token revokes all sessions |
 | POST | `/forgot-password` | 🔓 | `ForgotPasswordInput` | `{ message }` (202) | **Stub** — no email sent yet |
 
 ### User — `/api/user` (service: `userService`, `authService.me`)

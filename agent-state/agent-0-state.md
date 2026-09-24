@@ -23,7 +23,7 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
   prod compose, GitHub Actions CI, deploy docs. Done, integrated.
 - ✅ Production AI/speech wired (opt-in via env): hardened OpenAI text + real Whisper STT / OpenAI TTS
   behind the abstractions; Mock stays default (offline suite). Keys only in local `.env`.
-- **ALL ROADMAP PHASES COMPLETE (P1–P12).** `develop` gate green: typecheck + lint + 211 tests + build.
+- **ALL ROADMAP PHASES COMPLETE (P1–P12).** `develop` gate green: typecheck + lint + 330 tests + build.
 - Remaining non-phase work: live Teams/AVD capture, voice device selection, distinct CALL activity,
   TLS/ingress, centralized logging. `main` still at Phase 8 (user PR #3) — a `develop → main` PR promotes everything.
 
@@ -43,6 +43,9 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
 | feature/phase-10-progress (9702be3) | P10 | ✅ typecheck+lint+157 tests | ✅ develop |
 | feature/real-ai-speech (950fa71) | real OpenAI + speech | ✅ typecheck+lint+178 tests | ✅ develop |
 | feature/phase-11-12-qa-deploy (29b8a8f) | P11-12 | ✅ typecheck+lint+211 tests+build | ✅ develop |
+| feature/meeting-automation (e3f3db3, merged PR#4 capture) | Meeting AI automation | ✅ typecheck+lint+270 tests | ✅ develop |
+| feature/ics-calendar (37b92e5) | AVD ICS calendar + transcript import | ✅ typecheck+lint+303 tests | ✅ develop |
+| gap-analysis fixes (auth refresh, layering, CI migrations, docs) | — | ✅ typecheck+lint+330 tests+build | ✅ develop |
 
 ## Open coordination notes
 - A background agent owns worktree `.claude/worktrees/phase-3` on `feature/phase-4-5-modes`; it
@@ -54,7 +57,8 @@ See `docs/PHASE_MAP.md` for the full phase↔repo mapping. Summary as of 2026-09
   independently (ec53c5d, 0421ec5). Coordinate on `develop` to avoid races.
 
 ## Next actions
-1. P9 Courses: catalog, lessons, modules, exercises, progress.
-2. Backfill P1/P2 docs (needs `/reference/` assets from the user).
-3. Later phase: real Teams/AVD capture + STT/diarization behind the `@vaani/meeting` abstraction.
-4. Housekeeping: retire redundant `feature/phase-2-dashboard-profile` (superseded by develop lineage).
+1. Password reset: token model + email delivery behind a provider abstraction (forgot-password is a stub).
+2. Live Teams/AVD capture behind `@vaani/meeting` (consent + environment validation).
+3. Voice mic/speaker device selection; distinct server-side CALL activity kind.
+4. Ops: TLS/ingress, centralized logs/metrics; consider DB-backed API integration tests.
+5. Promote `develop → main` via PR (main is still at Phase 8).

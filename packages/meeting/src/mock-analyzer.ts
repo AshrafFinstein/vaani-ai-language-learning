@@ -6,6 +6,7 @@ import {
   type MeetingAnalysisDTO,
   type MeetingSummaryDTO,
   type ParticipantDTO,
+  type QuestionDTO,
 } from '@vaani/types';
 import type { AnalyzeInput, MeetingAnalysisProvider, TranscriptSegmentInput } from './types.js';
 
@@ -53,9 +54,11 @@ export class MockMeetingAnalysisProvider implements MeetingAnalysisProvider {
     const actionItems: ActionItemDTO[] = [];
     const risks: string[] = [];
     const questions: string[] = [];
+    const structuredQuestions: QuestionDTO[] = [];
     const discussionPoints: string[] = [];
 
     let actionOrdinal = 0;
+    let questionOrdinal = 0;
 
     for (const seg of segments) {
       const text = seg.text.trim();
@@ -96,9 +99,20 @@ export class MockMeetingAnalysisProvider implements MeetingAnalysisProvider {
         case 'RISK':
           risks.push(body);
           break;
-        case 'QUESTION':
+        case 'QUESTION': {
           questions.push(body);
+          questionOrdinal += 1;
+          structuredQuestions.push({
+            id: `q_${questionOrdinal}`,
+            ordinal: questionOrdinal,
+            text: body,
+            // Attributed to the speaker ONLY when they map to a known participant.
+            askedBy: speakerName ?? UNASSIGNED_OWNER,
+            // "answered" is set only from explicit transcript evidence (never guessed).
+            answered: false,
+          });
           break;
+        }
         default:
           // Substantive statements become discussion points; short acks are skipped.
           if (body.length >= 40) discussionPoints.push(body);
@@ -112,9 +126,12 @@ export class MockMeetingAnalysisProvider implements MeetingAnalysisProvider {
       risks,
       questions,
       nextSteps: buildNextSteps(segments),
+      // Topics are derived strictly from cue-marked lines that actually occurred —
+      // no theme is invented beyond transcript evidence (CLAUDE.md §15).
+      importantTopics: buildTopics(decisions, actionItems, risks, structuredQuestions),
     };
 
-    return { summary, decisions, actionItems, participants };
+    return { summary, decisions, actionItems, questions: structuredQuestions, participants };
   }
 }
 
@@ -215,6 +232,38 @@ function buildNextSteps(segments: TranscriptSegmentInput[]): string[] {
     }
   }
   return steps;
+}
+
+/**
+ * Derives "important topics" strictly from structured evidence already extracted
+ * from the transcript — the first clause of each decision/action/risk/question.
+ * Nothing is invented: if the transcript surfaced no structured items, no topics
+ * are produced (CLAUDE.md §15). Deterministic + de-duplicated.
+ */
+function buildTopics(
+  decisions: DecisionDTO[],
+  actionItems: ActionItemDTO[],
+  risks: string[],
+  questions: QuestionDTO[],
+): string[] {
+  const raw: string[] = [
+    ...decisions.map((d) => d.description),
+    ...actionItems.map((a) => a.description),
+    ...risks,
+    ...questions.map((q) => q.text),
+  ];
+  const topics: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    // Use the leading clause (up to a comma/dash/em-dash) as a compact topic label.
+    const label = item.split(/[,—-]/)[0]!.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    topics.push(label);
+  }
+  return topics;
 }
 
 function escapeRegExp(s: string): string {

@@ -6,7 +6,7 @@ import { ActionItemsTable } from './ActionItemsTable';
 /** Renders the full analysis for a meeting: overview, discussion, decisions,
  *  risks, questions, action items, and next steps. */
 export function MeetingAnalysis({ meeting }: { meeting: MeetingDetailDTO }) {
-  const { summary, decisions, actionItems } = meeting;
+  const { summary, decisions, actionItems, questions } = meeting;
 
   if (meeting.analysisStatus !== 'COMPLETED' || !summary) {
     return (
@@ -56,8 +56,29 @@ export function MeetingAnalysis({ meeting }: { meeting: MeetingDetailDTO }) {
         <BulletList items={summary.risks} empty="No risks or blockers were raised." />
       </Section>
 
+      <Section title="Important topics">
+        <BulletList items={summary.importantTopics} empty="No topics were surfaced." />
+      </Section>
+
       <Section title="Questions">
-        <BulletList items={summary.questions} empty="No open questions were raised." />
+        {questions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No open questions were raised.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {questions.map((q) => (
+              <li key={q.id} className="rounded-md border p-3">
+                <p>{q.text}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Asked by:{' '}
+                  <span className={q.askedBy === 'Unassigned' ? 'italic' : 'font-medium'}>
+                    {q.askedBy}
+                  </span>
+                  {q.answered ? ' · answered' : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
 
       <Section title="Action items">

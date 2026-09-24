@@ -1,5 +1,11 @@
 # Meeting Intelligence — Architecture (Phase 7B)
 
+> **See also:** [`MEETING_AUTOMATION_ARCHITECTURE.md`](./MEETING_AUTOMATION_ARCHITECTURE.md)
+> — the calendar-driven "Meeting AI" that extends this module with a lifecycle state
+> machine, read-only Outlook/Graph calendar sync, in-app notifications, a scheduler,
+> speaker mapping, questions/important-topics extraction, and a (deferred) local capture
+> path. Mock stays the default everywhere; real Graph/OpenAI are opt-in via env.
+
 Vaani AI's Meeting Intelligence module schedules meetings, models a consent-gated
 recording lifecycle, and produces an AI summary (overview, discussion points, key
 decisions, risks/blockers, questions, action items, next steps) from a transcript.

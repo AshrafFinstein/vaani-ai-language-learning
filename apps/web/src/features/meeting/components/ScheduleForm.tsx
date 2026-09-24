@@ -25,6 +25,7 @@ export function ScheduleForm({ onSubmit, isSubmitting, errorMessage }: ScheduleF
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('11:00');
   const [provider, setProvider] = useState<MeetingProvider>('TEAMS');
+  const [joinUrl, setJoinUrl] = useState('');
   const [participants, setParticipants] = useState<ParticipantRow[]>([
     { name: '', email: '', role: '' },
   ]);
@@ -53,6 +54,8 @@ export function ScheduleForm({ onSubmit, isSubmitting, errorMessage }: ScheduleF
       startTime,
       endTime,
       provider,
+      // Trimmed; empty → omitted so the optional Zod field resolves to undefined.
+      joinUrl: joinUrl.trim() || undefined,
       participants: cleanedParticipants,
       recordingEnabled,
       transcriptionEnabled,
@@ -142,6 +145,23 @@ export function ScheduleForm({ onSubmit, isSubmitting, errorMessage }: ScheduleF
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="meeting-join-url">Teams meeting link (optional)</Label>
+            <Input
+              id="meeting-join-url"
+              type="url"
+              value={joinUrl}
+              onChange={(e) => setJoinUrl(e.target.value)}
+              placeholder="https://teams.microsoft.com/l/meetup-join/…"
+            />
+            <p className="text-xs text-muted-foreground">
+              Paste your Teams meeting invite link — we&apos;ll extract the meeting id.
+            </p>
+            {fieldErrors.joinUrl && (
+              <p className="text-xs text-destructive">{fieldErrors.joinUrl}</p>
+            )}
           </div>
         </CardContent>
       </Card>
