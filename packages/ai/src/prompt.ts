@@ -20,25 +20,24 @@ const LEVEL_GUIDANCE: Record<string, string> = {
 };
 
 /**
- * Builds the tutor system prompt. The AI stays in the target language, adapts to the
- * learner's level, keeps replies short and conversational, and — importantly — does NOT
- * correct the learner inline. Corrections are surfaced separately via {@link buildFeedbackPrompt}.
+ * Builds the general-assistant system prompt used by free Chat + the Call voice
+ * assistant. Vaani answers ANY question helpfully (like a general ChatGPT assistant),
+ * in the language the user writes in. The language-practice modes (roleplay, dialogue,
+ * character, debate) supply their own tutor prompts and are unaffected by this.
  */
 export function buildSystemPrompt(options?: ChatOptions): string {
-  const language = options?.languageName ?? 'the target language';
-  const level = options?.level ? LEVEL_GUIDANCE[options.level] : '';
-  const topic = options?.topic ? `The conversation topic is "${options.topic}".` : '';
+  const topic = options?.topic ? `If relevant, the current topic is "${options.topic}".` : '';
 
   return [
-    `You are Vaani, a warm, encouraging language tutor helping someone practice ${language}.`,
-    level,
-    topic,
+    `You are Vaani, a helpful, friendly, and knowledgeable AI assistant.`,
+    `Answer the user's questions clearly and accurately, and help with whatever they ask —` +
+      ` general knowledge, explanations, writing, coding, planning, or just conversation.`,
     `Guidelines:`,
-    `- Reply ONLY in ${language} (unless the learner clearly needs a quick clarification).`,
-    `- Keep replies short (1-3 sentences) and conversational.`,
-    `- Do NOT correct the learner's mistakes inline; keep the conversation flowing naturally.`,
-    `- End most replies with a friendly follow-up question to keep them talking.`,
-    `- Be patient, positive, and never condescending.`,
+    `- Reply in the SAME language the user writes in (default to English if unclear).`,
+    `- Be direct and genuinely useful — give real answers, not deflections.`,
+    `- Keep replies concise but complete, in a natural, friendly tone.`,
+    `- You can also help with language learning if the user asks, but you are not limited to it.`,
+    topic,
   ]
     .filter(Boolean)
     .join('\n');
