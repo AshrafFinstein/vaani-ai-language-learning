@@ -5,170 +5,196 @@ AVD Audio Capture Probe
 Feasibility test for the "Meeting Voice Assistant" recorder: can THIS machine /
 AVD session capture the audio a recorder would need?
 
-It answers the make-or-break question for the desktop recorder:
-  - Can we capture the MICROPHONE (you)?            -> mic.wav
-  - Can we capture SYSTEM / loopback audio (them,   -> system.wav
-    i.e. the other Teams/Zoom/Meet participants)?
+  - MICROPHONE (you)                 -> mic.wav
+  - SYSTEM / loopback audio (them,   -> system.wav
+    the other Teams/Zoom/Meet participants)
 
-How it works: uses WASAPI loopback (via the `soundcard` library) to record the
-default speaker's output, plus the default microphone. It records a few seconds
-of each, measures the signal level, and prints a clear PASS/FAIL per source.
+Uses WASAPI loopback via PyAudioWPatch. Records a few seconds of each, measures the
+signal level, and prints a clear PASS/FAIL per source. No audio is uploaded anywhere.
 
-IMPORTANT: during the test, PLAY SOME AUDIO (join a Teams meeting with someone
-talking, or play a YouTube video) so the system/loopback capture has something to
-hear — otherwise system audio will correctly read as "silent".
+IMPORTANT: during the test, PLAY SOME AUDIO (a Teams call with someone talking, or a
+YouTube video) so the system/loopback capture has something to hear.
 
-Run:  double-click avd-audio-probe.exe   (or:  python avd_audio_probe.py)
-No audio is uploaded anywhere; the two .wav files are written next to the program
-so you can listen and confirm.
+Run:  run.bat   (or:  python avd_audio_probe.py)
 """
 
 import sys
 import wave
 
 RECORD_SECONDS = 8
-SAMPLE_RATE = 48000
-# Peak amplitude (0..1) above which we consider a capture "real audio", not silence.
-SILENCE_PEAK = 0.003
+SILENCE_PEAK = 0.003  # peak amplitude (0..1) above which a capture is "real audio"
+CHUNK = 1024
 
 try:
     import numpy as np
-    import soundcard as sc
-except Exception as exc:  # pragma: no cover - import guard for a friendlier message
-    print("ERROR: missing dependencies. Install with:  pip install soundcard numpy")
+    import pyaudiowpatch as pyaudio
+except Exception as exc:  # pragma: no cover
+    print("ERROR: missing dependencies. Install with:  pip install pyaudiowpatch numpy")
     print(f"       ({exc})")
     sys.exit(2)
 
 
 def banner(title):
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 62)
     print(title)
-    print("=" * 60)
+    print("=" * 62)
 
 
-def list_devices():
+def level(int16):
+    if int16 is None or len(int16) == 0:
+        return 0.0, 0.0
+    f = int16.astype(np.float32) / 32768.0
+    return float(np.max(np.abs(f))), float(np.sqrt(np.mean(np.square(f))))
+
+
+def save_wav(path, int16, channels, rate):
+    with wave.open(path, "wb") as w:
+        w.setnchannels(channels)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(int16.tobytes())
+
+
+def record(pa, dev, seconds):
+    """Record from a device dict using its native channels/rate (WASAPI shared mode)."""
+    channels = max(1, min(2, int(dev["maxInputChannels"])))
+    rate = int(dev["defaultSampleRate"])
+    stream = pa.open(
+        format=pyaudio.paInt16,
+        channels=channels,
+        rate=rate,
+        input=True,
+        input_device_index=int(dev["index"]),
+        frames_per_buffer=CHUNK,
+    )
+    frames = []
+    for _ in range(int(rate / CHUNK * seconds)):
+        frames.append(stream.read(CHUNK, exception_on_overflow=False))
+    stream.stop_stream()
+    stream.close()
+    data = np.frombuffer(b"".join(frames), dtype=np.int16)
+    return data, channels, rate
+
+
+def list_devices(pa):
     banner("1. AUDIO DEVICES VISIBLE TO THIS SESSION")
     try:
-        speakers = sc.all_speakers()
-        default_spk = sc.default_speaker()
-        print("\nOutput devices (speakers / headsets / redirected):")
-        for s in speakers:
-            mark = "  <- default" if s.name == default_spk.name else ""
-            print(f"   - {s.name}{mark}")
-    except Exception as exc:
-        print(f"   (could not enumerate speakers: {exc})")
-
+        wasapi = pa.get_host_api_info_by_type(pyaudio.paWASAPI)
+    except Exception:
+        wasapi = None
+    print("\nInput devices (microphones):")
+    for i in range(pa.get_device_count()):
+        d = pa.get_device_info_by_index(i)
+        if d.get("maxInputChannels", 0) > 0 and not d.get("isLoopbackDevice", False):
+            print(f"   - {d['name']}  ({int(d['maxInputChannels'])}ch @ {int(d['defaultSampleRate'])}Hz)")
+    print("\nLoopback devices (system/output capture):")
     try:
-        mics = sc.all_microphones(include_loopback=True)
-        default_mic = sc.default_microphone()
-        print("\nInput devices (microphones + loopback):")
-        for m in mics:
-            kind = "loopback/system" if getattr(m, "isloopback", False) else "microphone"
-            mark = "  <- default mic" if m.name == default_mic.name else ""
-            print(f"   - [{kind}] {m.name}{mark}")
+        for lb in pa.get_loopback_device_info_generator():
+            print(f"   - {lb['name']}  ({int(lb['maxInputChannels'])}ch @ {int(lb['defaultSampleRate'])}Hz)")
     except Exception as exc:
-        print(f"   (could not enumerate microphones: {exc})")
-    # Hints for the AVD-specific question.
+        print(f"   (none / not available: {exc})")
     print(
-        "\n   (Look for: your headset/Bluetooth device, and an AVD 'Remote Audio' /"
-        "\n    redirected device. If system audio only shows as 'Remote Audio', capture"
+        "\n   (Look for your headset/Bluetooth device and any AVD 'Remote Audio' /"
+        "\n    redirected device. If system audio is only a redirected device, capture"
         "\n    behavior depends on your AVD audio-redirection policy.)"
     )
 
 
-def level(data):
-    if data is None or len(data) == 0:
-        return 0.0, 0.0
-    mono = data[:, 0] if data.ndim > 1 else data
-    peak = float(np.max(np.abs(mono)))
-    rms = float(np.sqrt(np.mean(np.square(mono))))
-    return peak, rms
-
-
-def save_wav(path, data):
-    mono = data[:, 0] if data.ndim > 1 else data
-    pcm = np.clip(mono, -1.0, 1.0)
-    pcm16 = (pcm * 32767).astype(np.int16)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(SAMPLE_RATE)
-        w.writeframes(pcm16.tobytes())
-
-
-def record_microphone():
-    banner("2. MICROPHONE CAPTURE  (you / your voice)")
+def default_mic(pa):
     try:
-        mic = sc.default_microphone()
-        print(f"   Recording {RECORD_SECONDS}s from: {mic.name}")
-        print("   -> SPEAK NOW.")
-        with mic.recorder(samplerate=SAMPLE_RATE, channels=1) as rec:
-            data = rec.record(numframes=SAMPLE_RATE * RECORD_SECONDS)
-        peak, rms = level(data)
-        save_wav("mic.wav", data)
-        ok = peak > SILENCE_PEAK
-        print(f"   peak={peak:.4f} rms={rms:.4f}  -> saved mic.wav")
-        print(f"   RESULT: {'PASS - microphone captured' if ok else 'SILENT - no mic signal (check mic permission/redirection)'}")
-        return ok, peak
-    except Exception as exc:
-        print(f"   RESULT: FAIL - could not capture microphone: {exc}")
-        return False, 0.0
+        return pa.get_device_info_by_index(pa.get_default_input_device_info()["index"])
+    except Exception:
+        for i in range(pa.get_device_count()):
+            d = pa.get_device_info_by_index(i)
+            if d.get("maxInputChannels", 0) > 0 and not d.get("isLoopbackDevice", False):
+                return d
+    return None
 
 
-def record_system():
-    banner("3. SYSTEM / LOOPBACK CAPTURE  (them / the meeting audio)")
-    print("   -> Make sure audio is PLAYING (Teams call with someone talking, or a video).")
+def default_loopback(pa):
+    """The loopback device that captures the default speaker's output."""
     try:
-        spk = sc.default_speaker()
-        # The loopback 'microphone' that records the default speaker's output.
-        loop = sc.get_microphone(id=str(spk.name), include_loopback=True)
-        print(f"   Recording {RECORD_SECONDS}s of system output from: {spk.name}")
-        with loop.recorder(samplerate=SAMPLE_RATE, channels=1) as rec:
-            data = rec.record(numframes=SAMPLE_RATE * RECORD_SECONDS)
-        peak, rms = level(data)
-        save_wav("system.wav", data)
-        ok = peak > SILENCE_PEAK
-        print(f"   peak={peak:.4f} rms={rms:.4f}  -> saved system.wav")
-        if ok:
-            print("   RESULT: PASS - system/meeting audio captured  (the recorder can hear 'them')")
-        else:
-            print("   RESULT: SILENT - no system audio captured.")
-            print("           Either nothing was playing, OR this AVD does not expose")
-            print("           system/loopback audio to apps (the key limitation).")
-        return ok, peak
+        wasapi = pa.get_host_api_info_by_type(pyaudio.paWASAPI)
+        out = pa.get_device_info_by_index(wasapi["defaultOutputDevice"])
+        for lb in pa.get_loopback_device_info_generator():
+            if out["name"] in lb["name"] or lb["name"] in out["name"]:
+                return lb
+        # Fall back to the first loopback device.
+        for lb in pa.get_loopback_device_info_generator():
+            return lb
+    except Exception:
+        return None
+    return None
+
+
+def probe_source(pa, name, dev, wav, hint):
+    banner(name)
+    if not dev:
+        print(f"   RESULT: FAIL - no device found. {hint}")
+        return False
+    print(f"   Recording {RECORD_SECONDS}s from: {dev['name']}")
+    try:
+        data, ch, rate = record(pa, dev, RECORD_SECONDS)
     except Exception as exc:
-        print(f"   RESULT: FAIL - loopback capture unavailable: {exc}")
-        print("           This AVD likely blocks system-audio capture for apps.")
-        return False, 0.0
+        print(f"   RESULT: FAIL - could not open/read the device: {exc}")
+        print(f"           {hint}")
+        return False
+    peak, rms = level(data)
+    save_wav(wav, data, ch, rate)
+    ok = peak > SILENCE_PEAK
+    print(f"   peak={peak:.4f} rms={rms:.4f}  -> saved {wav}")
+    print(f"   RESULT: {'PASS - audio captured' if ok else 'SILENT - no signal captured'}")
+    if not ok:
+        print(f"           {hint}")
+    return ok
 
 
 def main():
     banner("AVD AUDIO CAPTURE PROBE  -  Meeting Voice Assistant feasibility test")
-    print("This records a few seconds of your mic and system audio, measures the")
-    print("levels, and tells you what a recorder could capture here. No upload.")
-    list_devices()
-    mic_ok, _ = record_microphone()
-    sys_ok, _ = record_system()
+    print("Records a few seconds of your mic + system audio, measures levels, and tells")
+    print("you what a recorder could capture here. Nothing is uploaded.")
+    pa = pyaudio.PyAudio()
+    try:
+        list_devices(pa)
+        print("\n>>> SPEAK during the mic step, and keep AUDIO PLAYING during the system step. <<<")
+        mic_ok = probe_source(
+            pa,
+            "2. MICROPHONE CAPTURE  (you / your voice)",
+            default_mic(pa),
+            "mic.wav",
+            "Check Windows mic privacy settings and AVD audio redirection.",
+        )
+        sys_ok = probe_source(
+            pa,
+            "3. SYSTEM / LOOPBACK CAPTURE  (them / the meeting audio)",
+            default_loopback(pa),
+            "system.wav",
+            "Either nothing was playing, OR this AVD does not expose system audio to apps.",
+        )
+    finally:
+        pa.terminate()
 
     banner("VERDICT")
-    print(f"   Microphone (you):        {'YES' if mic_ok else 'NO'}")
-    print(f"   System audio (them):     {'YES' if sys_ok else 'NO'}")
+    print(f"   Microphone (you):     {'YES' if mic_ok else 'NO'}")
+    print(f"   System audio (them):  {'YES' if sys_ok else 'NO'}")
     print()
     if mic_ok and sys_ok:
-        print("   ==> FULL two-way capture works here. The voice-recorder workflow is")
-        print("       feasible: we can record both sides and run STT + AI meeting notes.")
-    elif mic_ok and not sys_ok:
-        print("   ==> Only YOUR mic is capturable; the OTHER participants (system audio)")
-        print("       are not. In this AVD, a recorder could only capture your side.")
-        print("       Options: enable AVD audio redirection for apps, or use the meeting")
-        print("       host's recording/transcript instead.")
-    elif not mic_ok and sys_ok:
+        print("   ==> FULL two-way capture works. The voice-recorder workflow is feasible:")
+        print("       record both sides -> Whisper STT -> AI meeting notes.")
+    elif mic_ok:
+        print("   ==> Only YOUR mic is capturable; the other participants (system audio)")
+        print("       are not exposed to apps in this AVD. Options: enable AVD audio")
+        print("       redirection for apps, or use the meeting host's recording/transcript.")
+    elif sys_ok:
         print("   ==> System audio works but the mic did not (permission/redirection).")
     else:
-        print("   ==> Neither source captured. Ensure audio was playing and that this")
-        print("       AVD permits audio capture, then re-run.")
-    print("\n   Listen to mic.wav and system.wav next to this program to confirm.\n")
-    input("   Press Enter to exit...")
+        print("   ==> Neither source captured. Ensure audio was playing and this AVD")
+        print("       permits audio capture, then re-run.")
+    print("\n   Listen to mic.wav / system.wav next to this program to confirm.\n")
+    try:
+        input("   Press Enter to exit...")
+    except EOFError:
+        pass
 
 
 if __name__ == "__main__":

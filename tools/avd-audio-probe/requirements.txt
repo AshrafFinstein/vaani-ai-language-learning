@@ -1,2 +1,2 @@
-soundcard>=0.4.3
+PyAudioWPatch>=0.2.12
 numpy>=1.24
